@@ -71,22 +71,7 @@ const RolePanelsCard = () => {
         </TouchableOpacity>
       )}
       
-      {/* Panel de Artista */}
-      {user.roles.includes("artist") && (
-        <TouchableOpacity style={styles.roleCard}>
-          <LinearGradient
-            colors={["#10b981", "#059669"]}
-            style={styles.roleGradient}
-          >
-            <Sparkles color="#ffffff" size={28} />
-            <View style={styles.roleContent}>
-              <Text style={styles.roleTitle}>Panel de Artista</Text>
-              <Text style={styles.roleSubtitle}>Crea y vende contenido digital</Text>
-            </View>
-            <ChevronRight color="#ffffff" size={20} />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
+
       
       {/* Panel Conecta */}
       {user.roles.includes("referrer") && (
@@ -137,13 +122,7 @@ const RolePanelsCard = () => {
           </TouchableOpacity>
         )}
         
-        {!user.roles.includes("artist") && (
-          <TouchableOpacity style={styles.requestButton}>
-            <Sparkles color="#10b981" size={20} />
-            <Text style={styles.requestButtonText}>Solicitar Panel de Artista</Text>
-            <ChevronRight color="#64748b" size={16} />
-          </TouchableOpacity>
-        )}
+
         
         {!user.roles.includes("referrer") && (
           <TouchableOpacity 

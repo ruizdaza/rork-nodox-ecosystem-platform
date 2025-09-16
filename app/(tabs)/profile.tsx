@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,7 +20,6 @@ import {
   Gift,
   LogOut,
   Store,
-  Sparkles,
   UserPlus,
   Crown
 } from "lucide-react-native";
@@ -131,22 +129,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
             
-            {/* Panel de Artista */}
-            {user.roles.includes("artist") && (
-              <TouchableOpacity style={styles.roleCard}>
-                <LinearGradient
-                  colors={["#10b981", "#059669"]}
-                  style={styles.roleGradient}
-                >
-                  <Sparkles color="#ffffff" size={24} />
-                  <View style={styles.roleContent}>
-                    <Text style={styles.roleTitle}>Panel de Artista</Text>
-                    <Text style={styles.roleSubtitle}>Contenido digital</Text>
-                  </View>
-                  <ChevronRight color="#ffffff" size={20} />
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
+
             
             {/* Panel Conecta */}
             {user.roles.includes("referrer") && (

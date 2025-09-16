@@ -14,7 +14,7 @@ interface User {
   isAlly: boolean;
 }
 
-type UserRole = "user" | "ally" | "artist" | "referrer" | "admin";
+type UserRole = "user" | "ally" | "referrer" | "admin";
 
 interface Product {
   id: string;
