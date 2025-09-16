@@ -26,8 +26,20 @@ import {
   Sparkles,
   Heart,
   PawPrint,
+  Plus,
+  Edit3,
+  Trash2,
+  Eye,
+  EyeOff,
+  Search,
+  Filter,
+  ShoppingCart,
+  Tag,
+  Image,
+  AlertCircle,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
+import NodoXLogo from "@/components/NodoXLogo";
 const { width } = Dimensions.get("window");
 
 type AllyView = 
@@ -43,8 +55,21 @@ type AllyView =
 
 export default function AllyDashboard() {
   const router = useRouter();
-  const { switchToUserView, allyMetrics, services, appointments } = useNodoX();
+  const { 
+    switchToUserView, 
+    allyMetrics, 
+    services, 
+    appointments, 
+    products,
+    addProduct,
+    updateProduct,
+    deleteProduct 
+  } = useNodoX();
   const [currentView, setCurrentView] = useState<AllyView>("overview");
+  const [productSearchQuery, setProductSearchQuery] = useState<string>("");
+  const [productFilter, setProductFilter] = useState<"all" | "products" | "services" | "active" | "inactive">("all");
+  const [showAddProductModal, setShowAddProductModal] = useState<boolean>(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const menuItems = [
     { id: "overview", icon: BarChart3, title: "Resumen", color: "#2563eb" },
@@ -300,6 +325,283 @@ export default function AllyDashboard() {
     </ScrollView>
   );
 
+  const renderProducts = () => {
+    const filteredProducts = products.filter(product => {
+      const matchesSearch = product.name.toLowerCase().includes(productSearchQuery.toLowerCase()) ||
+                           product.description.toLowerCase().includes(productSearchQuery.toLowerCase());
+      
+      const matchesFilter = (() => {
+        switch (productFilter) {
+          case "products": return !product.isService;
+          case "services": return product.isService;
+          case "active": return product.isActive;
+          case "inactive": return !product.isActive;
+          default: return true;
+        }
+      })();
+      
+      return matchesSearch && matchesFilter;
+    });
+
+    const productCategories = [...new Set(products.map(p => p.category))];
+    const totalProducts = products.filter(p => !p.isService).length;
+    const totalServices = products.filter(p => p.isService).length;
+    const activeProducts = products.filter(p => p.isActive).length;
+    const lowStockProducts = products.filter(p => !p.isService && p.stock < 5).length;
+
+    return (
+      <ScrollView style={styles.content}>
+        {/* Header */}
+        <View style={styles.productHeader}>
+          <View style={styles.productHeaderLeft}>
+            <NodoXLogo size="small" showText={false} />
+            <Text style={styles.sectionTitle}>Gestión de Productos</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => setShowAddProductModal(true)}
+          >
+            <Plus color="#ffffff" size={16} />
+            <Text style={styles.addButtonText}>Agregar Producto</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats Cards */}
+        <View style={styles.productStatsGrid}>
+          <View style={styles.productStatCard}>
+            <Package color="#2563eb" size={20} />
+            <Text style={styles.productStatValue}>{totalProducts}</Text>
+            <Text style={styles.productStatLabel}>Productos</Text>
+          </View>
+          <View style={styles.productStatCard}>
+            <Stethoscope color="#7c3aed" size={20} />
+            <Text style={styles.productStatValue}>{totalServices}</Text>
+            <Text style={styles.productStatLabel}>Servicios</Text>
+          </View>
+          <View style={styles.productStatCard}>
+            <Eye color="#059669" size={20} />
+            <Text style={styles.productStatValue}>{activeProducts}</Text>
+            <Text style={styles.productStatLabel}>Activos</Text>
+          </View>
+          <View style={styles.productStatCard}>
+            <AlertCircle color="#dc2626" size={20} />
+            <Text style={styles.productStatValue}>{lowStockProducts}</Text>
+            <Text style={styles.productStatLabel}>Stock Bajo</Text>
+          </View>
+        </View>
+
+        {/* Search and Filters */}
+        <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
+            <Search color="#64748b" size={16} />
+            <Text 
+              style={styles.searchInput}
+              onPress={() => console.log('Search functionality would be implemented here')}
+            >
+              {productSearchQuery || "Buscar productos..."}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.filterButton}>
+            <Filter color="#64748b" size={16} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter Chips */}
+        <View style={styles.filtersContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.filtersRow}>
+              {[
+                { key: "all", label: "Todos" },
+                { key: "products", label: "Productos" },
+                { key: "services", label: "Servicios" },
+                { key: "active", label: "Activos" },
+                { key: "inactive", label: "Inactivos" },
+              ].map((filter) => (
+                <TouchableOpacity 
+                  key={filter.key}
+                  style={[
+                    styles.filterChip, 
+                    productFilter === filter.key && styles.filterChipActive
+                  ]}
+                  onPress={() => setProductFilter(filter.key as any)}
+                >
+                  <Text style={[
+                    styles.filterChipText,
+                    productFilter === filter.key && styles.filterChipTextActive
+                  ]}>
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Categories Overview */}
+        <View style={styles.section}>
+          <Text style={styles.subsectionTitle}>Categorías</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.categoriesRow}>
+              {productCategories.map((category) => {
+                const categoryCount = products.filter(p => p.category === category).length;
+                return (
+                  <TouchableOpacity key={category} style={styles.categoryCard}>
+                    <View style={styles.categoryIcon}>
+                      <Tag color="#2563eb" size={20} />
+                    </View>
+                    <Text style={styles.categoryTitle}>{category}</Text>
+                    <Text style={styles.categoryCount}>{categoryCount} items</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Products List */}
+        <View style={styles.section}>
+          <Text style={styles.subsectionTitle}>Productos y Servicios ({filteredProducts.length})</Text>
+          {filteredProducts.map((product) => (
+            <View key={product.id} style={styles.productCard}>
+              <View style={styles.productImageContainer}>
+                {product.images && product.images.length > 0 ? (
+                  <View style={styles.productImagePlaceholder}>
+                    <Image color="#94a3b8" size={24} />
+                  </View>
+                ) : (
+                  <View style={styles.productImagePlaceholder}>
+                    <Package color="#94a3b8" size={24} />
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.productInfo}>
+                <View style={styles.productItemHeader}>
+                  <Text style={styles.productName}>{product.name}</Text>
+                  <View style={styles.productBadges}>
+                    {product.isService && (
+                      <View style={styles.serviceBadge}>
+                        <Text style={styles.serviceBadgeText}>Servicio</Text>
+                      </View>
+                    )}
+                    <View style={[
+                      styles.statusBadge,
+                      { backgroundColor: product.isActive ? '#dcfce7' : '#fef3c7' }
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        { color: product.isActive ? '#166534' : '#92400e' }
+                      ]}>
+                        {product.isActive ? 'Activo' : 'Inactivo'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                
+                <Text style={styles.productDescription} numberOfLines={2}>
+                  {product.description}
+                </Text>
+                
+                <View style={styles.productDetails}>
+                  <Text style={styles.productPrice}>
+                    ${product.price.toLocaleString()}
+                  </Text>
+                  {product.ncopPrice && (
+                    <Text style={styles.productNcopPrice}>
+                      {product.ncopPrice} NCOP
+                    </Text>
+                  )}
+                  {!product.isService && (
+                    <Text style={[
+                      styles.productStock,
+                      { color: product.stock < 5 ? '#dc2626' : '#64748b' }
+                    ]}>
+                      Stock: {product.stock}
+                    </Text>
+                  )}
+                  {product.isService && product.duration && (
+                    <Text style={styles.productDuration}>
+                      {product.duration} min
+                    </Text>
+                  )}
+                </View>
+                
+                <Text style={styles.productCategory}>{product.category}</Text>
+              </View>
+              
+              <View style={styles.productActions}>
+                <TouchableOpacity 
+                  style={styles.productActionButton}
+                  onPress={() => setEditingProduct(product)}
+                >
+                  <Edit3 color="#2563eb" size={16} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.productActionButton}
+                  onPress={() => updateProduct(product.id, { isActive: !product.isActive })}
+                >
+                  {product.isActive ? (
+                    <EyeOff color="#ea580c" size={16} />
+                  ) : (
+                    <Eye color="#059669" size={16} />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.productActionButton}
+                  onPress={() => {
+                    console.log('Delete product:', product.id);
+                    deleteProduct(product.id);
+                  }}
+                >
+                  <Trash2 color="#dc2626" size={16} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          
+          {filteredProducts.length === 0 && (
+            <View style={styles.emptyState}>
+              <Package color="#94a3b8" size={48} />
+              <Text style={styles.emptyStateText}>No se encontraron productos</Text>
+              <Text style={styles.emptyStateSubtext}>
+                {productSearchQuery || productFilter !== "all" 
+                  ? "Intenta ajustar los filtros de búsqueda"
+                  : "Agrega tu primer producto para comenzar"
+                }
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.subsectionTitle}>Acciones rápidas</Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity 
+              style={styles.quickActionCard}
+              onPress={() => setShowAddProductModal(true)}
+            >
+              <Plus color="#2563eb" size={24} />
+              <Text style={styles.quickActionCardText}>Nuevo Producto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionCard}>
+              <ShoppingCart color="#059669" size={24} />
+              <Text style={styles.quickActionCardText}>Ver Ventas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionCard}>
+              <BarChart3 color="#7c3aed" size={24} />
+              <Text style={styles.quickActionCardText}>Reportes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionCard}>
+              <Tag color="#ea580c" size={24} />
+              <Text style={styles.quickActionCardText}>Categorías</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
+
   const renderStaff = () => (
     <ScrollView style={styles.content}>
       <View style={styles.sectionHeader}>
@@ -356,13 +658,7 @@ export default function AllyDashboard() {
       case "staff":
         return renderStaff();
       case "products":
-        return (
-          <View style={styles.comingSoon}>
-            <Package color="#64748b" size={48} />
-            <Text style={styles.comingSoonText}>Gestión de Productos</Text>
-            <Text style={styles.comingSoonSubtext}>Próximamente disponible</Text>
-          </View>
-        );
+        return renderProducts();
       case "pos":
         return (
           <View style={styles.comingSoon}>
@@ -962,5 +1258,231 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#94a3b8",
     textAlign: "center",
+  },
+  // Product Management Styles
+  productStatsGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  productStatCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  productStatValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  productStatLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+  },
+  searchFilterContainer: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#64748b",
+  },
+  filterButton: {
+    backgroundColor: "#ffffff",
+    padding: 12,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  categoryCount: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  productCard: {
+    backgroundColor: "#ffffff",
+    flexDirection: "row",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  productImageContainer: {
+    marginRight: 12,
+  },
+  productImagePlaceholder: {
+    width: 60,
+    height: 60,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  productInfo: {
+    flex: 1,
+  },
+  productItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  productName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    flex: 1,
+    marginRight: 8,
+  },
+  productBadges: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  serviceBadge: {
+    backgroundColor: "#ede9fe",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  serviceBadgeText: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#7c3aed",
+  },
+  productDescription: {
+    fontSize: 14,
+    color: "#64748b",
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  productDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#059669",
+  },
+  productNcopPrice: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#2563eb",
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  productStock: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  productDuration: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  productCategory: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginTop: 4,
+  },
+  productActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  productActionButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: "#f8fafc",
+  },
+  emptyState: {
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748b",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  quickActionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  quickActionCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: (width - 64) / 2,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  quickActionCardText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#374151",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  productHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  productHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
 });
