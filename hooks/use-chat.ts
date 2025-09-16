@@ -270,7 +270,19 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     queryFn: async (): Promise<Chat[]> => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEYS.CHATS);
-        return stored ? JSON.parse(stored) : mockChats;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((chat: any) => ({
+            ...chat,
+            createdAt: new Date(chat.createdAt),
+            updatedAt: new Date(chat.updatedAt),
+            lastMessage: chat.lastMessage ? {
+              ...chat.lastMessage,
+              timestamp: new Date(chat.lastMessage.timestamp)
+            } : undefined
+          }));
+        }
+        return mockChats;
       } catch {
         return mockChats;
       }
@@ -282,7 +294,18 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     queryFn: async (): Promise<Record<string, User>> => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEYS.USERS);
-        return stored ? JSON.parse(stored) : mockUsers;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const result: Record<string, User> = {};
+          for (const [userId, user] of Object.entries(parsed)) {
+            result[userId] = {
+              ...(user as any),
+              lastSeen: (user as any).lastSeen ? new Date((user as any).lastSeen) : undefined
+            };
+          }
+          return result;
+        }
+        return mockUsers;
       } catch {
         return mockUsers;
       }
@@ -294,7 +317,18 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     queryFn: async (): Promise<Record<string, Message[]>> => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEYS.MESSAGES);
-        return stored ? JSON.parse(stored) : mockMessages;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const result: Record<string, Message[]> = {};
+          for (const [chatId, messages] of Object.entries(parsed)) {
+            result[chatId] = (messages as any[]).map(msg => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }));
+          }
+          return result;
+        }
+        return mockMessages;
       } catch {
         return mockMessages;
       }
@@ -306,7 +340,15 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     queryFn: async (): Promise<Contact[]> => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEYS.CONTACTS);
-        return stored ? JSON.parse(stored) : mockContacts;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((contact: any) => ({
+            ...contact,
+            addedAt: new Date(contact.addedAt),
+            lastSeen: contact.lastSeen ? new Date(contact.lastSeen) : undefined
+          }));
+        }
+        return mockContacts;
       } catch {
         return mockContacts;
       }
