@@ -11,13 +11,15 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
+  Share,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { 
   Heart, 
   MessageCircle, 
-  Share, 
+  Share as ShareIcon, 
   MoreHorizontal,
   Camera,
   Plus,
@@ -151,6 +153,36 @@ export default function SocialScreen() {
     setPostImage("");
   };
 
+  const handleSharePost = async (post: any) => {
+    try {
+      const shareContent = {
+        message: `${post.content}\n\n¡Mira esta publicación en Momentos de NodoX!`,
+        url: post.image || undefined,
+        title: `Publicación de ${post.user.name}`,
+      };
+
+      if (Platform.OS === 'web') {
+        if (navigator.share && navigator.canShare && navigator.canShare(shareContent)) {
+          await navigator.share(shareContent);
+        } else {
+          // Fallback para web: copiar al portapapeles
+          await navigator.clipboard.writeText(
+            `${post.content}\n\n¡Mira esta publicación en Momentos de NodoX!${post.image ? `\n${post.image}` : ''}`
+          );
+          Alert.alert('¡Copiado!', 'El contenido se ha copiado al portapapeles');
+        }
+      } else {
+        // Para móviles usar React Native Share
+        await Share.share(shareContent);
+      }
+    } catch (error: any) {
+      if (error?.message !== 'User did not share') {
+        console.log('Error sharing post:', error);
+        Alert.alert('Error', 'No se pudo compartir la publicación');
+      }
+    }
+  };
+
   const sortedChats = React.useMemo(() => {
     return [...chats].sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
@@ -231,8 +263,11 @@ export default function SocialScreen() {
               <MessageCircle color="#64748b" size={20} />
               <Text style={styles.actionText}>{post.comments.length}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <Share color="#64748b" size={20} />
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => handleSharePost(post)}
+            >
+              <ShareIcon color="#64748b" size={20} />
               <Text style={styles.actionText}>Compartir</Text>
             </TouchableOpacity>
           </View>
