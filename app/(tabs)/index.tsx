@@ -45,6 +45,7 @@ import NodoXLogo from "@/components/NodoXLogo";
 
 const RolePanelsCard = () => {
   const { user, switchToAllyView } = useNodoX();
+  const router = useRouter();
   
   return (
     <View style={styles.section}>
@@ -89,7 +90,10 @@ const RolePanelsCard = () => {
       
       {/* Panel Conecta */}
       {user.roles.includes("referrer") && (
-        <TouchableOpacity style={styles.roleCard}>
+        <TouchableOpacity 
+          style={styles.roleCard}
+          onPress={() => router.push('/referral-dashboard')}
+        >
           <LinearGradient
             colors={["#f59e0b", "#d97706"]}
             style={styles.roleGradient}
@@ -142,7 +146,10 @@ const RolePanelsCard = () => {
         )}
         
         {!user.roles.includes("referrer") && (
-          <TouchableOpacity style={styles.requestButton}>
+          <TouchableOpacity 
+            style={styles.requestButton}
+            onPress={() => router.push('/referral-dashboard')}
+          >
             <UserPlus color="#f59e0b" size={20} />
             <Text style={styles.requestButtonText}>Unirse a NodoX Conecta</Text>
             <ChevronRight color="#64748b" size={16} />
@@ -1089,7 +1096,10 @@ export default function HomeScreen() {
               <TrendingUp color="#10b981" size={24} />
               <Text style={styles.actionText}>Ganar puntos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/referral-dashboard')}
+            >
               <Users color="#8b5cf6" size={24} />
               <Text style={styles.actionText}>Referir amigos</Text>
             </TouchableOpacity>
