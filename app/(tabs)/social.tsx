@@ -24,7 +24,9 @@ import {
   Search,
   Pin,
   X,
-  Send
+  Send,
+  Image as ImageIcon,
+  Smile
 } from "lucide-react-native";
 import { useSocialFeed } from "@/hooks/use-social-feed";
 import { useChat } from "@/hooks/use-chat";
@@ -113,7 +115,10 @@ export default function SocialScreen() {
   const [activeTab, setActiveTab] = useState<"feed" | "chat">("feed");
   const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [commentText, setCommentText] = useState<string>("");
-  const { posts, toggleLike, toggleCommentLike, addComment } = useSocialFeed();
+  const [showCreatePost, setShowCreatePost] = useState<boolean>(false);
+  const [postText, setPostText] = useState<string>("");
+  const [postImage, setPostImage] = useState<string>("");
+  const { posts, toggleLike, toggleCommentLike, addComment, addPost } = useSocialFeed();
   const { chats, isLoading } = useChat();
 
   const selectedPostData = posts.find(post => post.id === selectedPost);
@@ -128,6 +133,21 @@ export default function SocialScreen() {
   const handleCloseComments = () => {
     setSelectedPost(null);
     setCommentText("");
+  };
+
+  const handleCreatePost = () => {
+    if (postText.trim()) {
+      addPost(postText.trim(), postImage || undefined);
+      setPostText("");
+      setPostImage("");
+      setShowCreatePost(false);
+    }
+  };
+
+  const handleCloseCreatePost = () => {
+    setShowCreatePost(false);
+    setPostText("");
+    setPostImage("");
   };
 
   const sortedChats = React.useMemo(() => {
@@ -262,7 +282,10 @@ export default function SocialScreen() {
           <TouchableOpacity style={styles.headerButton}>
             <Camera color="#64748b" size={24} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => setShowCreatePost(true)}
+          >
             <Plus color="#64748b" size={24} />
           </TouchableOpacity>
         </View>
@@ -286,6 +309,94 @@ export default function SocialScreen() {
 
       {/* Content */}
       {activeTab === "feed" ? renderFeed() : renderChat()}
+
+      {/* Create Post Modal */}
+      <Modal
+        visible={showCreatePost}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <KeyboardAvoidingView 
+            style={styles.modalContent}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            {/* Create Post Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={handleCloseCreatePost}
+              >
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Crear publicación</Text>
+              <TouchableOpacity 
+                style={[styles.publishButton, !postText.trim() && styles.publishButtonDisabled]}
+                onPress={handleCreatePost}
+                disabled={!postText.trim()}
+              >
+                <Text style={[styles.publishButtonText, !postText.trim() && styles.publishButtonTextDisabled]}>
+                  Publicar
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* User Info */}
+            <View style={styles.createPostUser}>
+              <Image 
+                source={{ uri: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face" }} 
+                style={styles.avatar} 
+              />
+              <View>
+                <Text style={styles.userName}>Tú</Text>
+                <Text style={styles.postVisibility}>Público</Text>
+              </View>
+            </View>
+
+            {/* Post Content Input */}
+            <ScrollView style={styles.createPostContent} showsVerticalScrollIndicator={false}>
+              <TextInput
+                style={styles.postTextInput}
+                placeholder="¿Qué quieres compartir con la comunidad?"
+                value={postText}
+                onChangeText={setPostText}
+                multiline
+                maxLength={1000}
+                textAlignVertical="top"
+              />
+              
+              {/* Image Preview */}
+              {postImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: postImage }} style={styles.imagePreview} />
+                  <TouchableOpacity 
+                    style={styles.removeImageButton}
+                    onPress={() => setPostImage("")}
+                  >
+                    <X color="#ffffff" size={16} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </ScrollView>
+
+            {/* Post Options */}
+            <View style={styles.postOptions}>
+              <TouchableOpacity 
+                style={styles.postOption}
+                onPress={() => setPostImage("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop")}
+              >
+                <ImageIcon color="#10b981" size={24} />
+                <Text style={styles.postOptionText}>Foto</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.postOption}>
+                <Smile color="#f59e0b" size={24} />
+                <Text style={styles.postOptionText}>Sentimiento</Text>
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Comments Modal */}
       <Modal
@@ -839,5 +950,91 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  // Create Post Modal Styles
+  publishButton: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  publishButtonDisabled: {
+    backgroundColor: "#e2e8f0",
+  },
+  publishButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  publishButtonTextDisabled: {
+    color: "#94a3b8",
+  },
+  createPostUser: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    gap: 12,
+  },
+  postVisibility: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  createPostContent: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  postTextInput: {
+    fontSize: 16,
+    color: "#1e293b",
+    lineHeight: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    minHeight: 120,
+  },
+  imagePreviewContainer: {
+    position: "relative",
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  imagePreview: {
+    width: "100%",
+    height: 200,
+  },
+  removeImageButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  postOptions: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    gap: 24,
+  },
+  postOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  postOptionText: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
   },
 });

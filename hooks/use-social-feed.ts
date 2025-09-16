@@ -246,10 +246,31 @@ export const useSocialFeed = () => {
     );
   }, []);
 
+  const addPost = useCallback((content: string, image?: string) => {
+    const newPost: Post = {
+      id: `p${Date.now()}`,
+      user: {
+        id: "current-user",
+        name: "Tú",
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face",
+        verified: false,
+      },
+      content,
+      image,
+      timestamp: "Ahora",
+      likes: 0,
+      comments: [],
+      liked: false,
+    };
+
+    setPosts(prevPosts => [newPost, ...prevPosts]);
+  }, []);
+
   return {
     posts,
     toggleLike,
     toggleCommentLike,
     addComment,
+    addPost,
   };
 };
