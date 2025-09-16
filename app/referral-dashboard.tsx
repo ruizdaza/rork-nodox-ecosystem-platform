@@ -28,7 +28,6 @@ import {
   QrCode,
   MessageCircle,
   Mail,
-  Phone,
 } from "lucide-react-native";
 import { useRouter, Stack } from "expo-router";
 import { useNodoX } from "@/hooks/use-nodox-store";
@@ -126,10 +125,19 @@ export default function ReferralDashboard() {
   const handleShare = async () => {
     try {
       if (Platform.OS === 'web') {
-        // For web, always use clipboard as primary method since Web Share API is unreliable
-        await handleCopyLink();
-        setShareMessage('Enlace copiado al portapapeles - ¡Compártelo donde quieras!');
-        setTimeout(() => setShareMessage(null), 3000);
+        // For web, try Web Share API first, fallback to clipboard
+        if (navigator.share) {
+          await navigator.share({
+            title: 'Únete a NodoX',
+            text: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis!`,
+            url: referralLink,
+          });
+        } else {
+          // Fallback to clipboard for browsers without Web Share API
+          await handleCopyLink();
+          setShareMessage('Enlace copiado al portapapeles - ¡Compártelo donde quieras!');
+          setTimeout(() => setShareMessage(null), 3000);
+        }
       } else {
         // Use React Native Share for mobile
         await Share.share({
@@ -139,15 +147,17 @@ export default function ReferralDashboard() {
       }
     } catch (error: any) {
       console.error("Error sharing:", error);
-      // Fallback to copying link
-      try {
-        await handleCopyLink();
-        setShareMessage('Enlace copiado al portapapeles');
-        setTimeout(() => setShareMessage(null), 3000);
-      } catch (copyError) {
-        console.error("Error copying:", copyError);
-        setShareMessage('Error: No se pudo compartir el enlace');
-        setTimeout(() => setShareMessage(null), 3000);
+      // Only fallback to copying if it's not a user cancellation
+      if (error.message !== 'User cancelled' && !error.message.includes('AbortError')) {
+        try {
+          await handleCopyLink();
+          setShareMessage('Enlace copiado al portapapeles');
+          setTimeout(() => setShareMessage(null), 3000);
+        } catch (copyError) {
+          console.error("Error copying:", copyError);
+          setShareMessage('Error: No se pudo compartir el enlace');
+          setTimeout(() => setShareMessage(null), 3000);
+        }
       }
     }
   };
@@ -443,19 +453,48 @@ export default function ReferralDashboard() {
             </View>
             
             <View style={styles.shareOptions}>
-              <TouchableOpacity style={[styles.shareOption, { width: (width - 80) / 4 }]}>
+              <TouchableOpacity 
+                style={[styles.shareOption, { width: (width - 80) / 3 }]}
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(`¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis! ${referralLink}`)}`, '_blank');
+                  } else {
+                    // For mobile, this would need Linking.openURL
+                    handleShare(); // Fallback to native share
+                  }
+                  setShareModalVisible(false);
+                }}
+              >
                 <MessageCircle color="#25d366" size={24} />
                 <Text style={styles.shareOptionText}>WhatsApp</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareOption, { width: (width - 80) / 4 }]}>
+              <TouchableOpacity 
+                style={[styles.shareOption, { width: (width - 80) / 3 }]}
+                onPress={() => {
+                  const emailSubject = 'Únete a NodoX';
+                  const emailBody = `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis!\n\n${referralLink}`;
+                  const mailtoUrl = `mailto:?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+                  if (Platform.OS === 'web') {
+                    window.open(mailtoUrl);
+                  } else {
+                    // For mobile, this would need Linking.openURL
+                    handleShare(); // Fallback to native share
+                  }
+                  setShareModalVisible(false);
+                }}
+              >
                 <Mail color="#ea4335" size={24} />
                 <Text style={styles.shareOptionText}>Email</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareOption, { width: (width - 80) / 4 }]}>
-                <Phone color="#1da1f2" size={24} />
-                <Text style={styles.shareOptionText}>SMS</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.shareOption, { width: (width - 80) / 4 }]}>
+              <TouchableOpacity 
+                style={[styles.shareOption, { width: (width - 80) / 3 }]}
+                onPress={() => {
+                  // Generate QR code functionality would go here
+                  setShareMessage('Función de código QR próximamente');
+                  setTimeout(() => setShareMessage(null), 2000);
+                  setShareModalVisible(false);
+                }}
+              >
                 <QrCode color="#1e293b" size={24} />
                 <Text style={styles.shareOptionText}>Código QR</Text>
               </TouchableOpacity>
