@@ -107,8 +107,8 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [expoPushToken, setExpoPushToken] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
-  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
-  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -169,35 +169,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     }
   }, [markAsRead]);
 
-  useEffect(() => {
-    loadNotifications();
-    loadSettings();
-    registerForPushNotificationsAsync();
-
-    if (Platform.OS !== 'web') {
-      notificationListener.current = Notifications.addNotificationReceivedListener(handleIncomingNotification);
-      responseListener.current = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
-    }
-
-    return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
-      }
-    };
-  }, [handleIncomingNotification, handleNotificationResponse, loadNotifications, loadSettings]);
-
-  useEffect(() => {
-    const count = notifications.filter(n => !n.read).length;
-    setUnreadCount(count);
-    if (Platform.OS !== 'web') {
-      Notifications.setBadgeCountAsync(count);
-    }
-  }, [notifications]);
-
-  const registerForPushNotificationsAsync = async () => {
+  const registerForPushNotificationsAsync = useCallback(async () => {
     if (Platform.OS === 'web') {
       console.log('Push notifications not supported on web');
       return;
@@ -217,13 +189,43 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         return;
       }
       
-      const tokenData = await Notifications.getExpoPushTokenAsync();
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: undefined
+      });
       console.log('Expo push token:', tokenData.data);
       setExpoPushToken(tokenData.data);
     } catch (error) {
       console.log('Error getting push token:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    loadSettings();
+    registerForPushNotificationsAsync();
+
+    if (Platform.OS !== 'web') {
+      notificationListener.current = Notifications.addNotificationReceivedListener(handleIncomingNotification);
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    }
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [handleIncomingNotification, handleNotificationResponse, loadNotifications, loadSettings, registerForPushNotificationsAsync]);
+
+  useEffect(() => {
+    const count = notifications.filter(n => !n.read).length;
+    setUnreadCount(count);
+    if (Platform.OS !== 'web') {
+      Notifications.setBadgeCountAsync(count);
+    }
+  }, [notifications]);
 
   const isQuietHours = useCallback((): boolean => {
     if (!settings.quietHours.enabled) return false;
