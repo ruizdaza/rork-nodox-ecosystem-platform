@@ -554,6 +554,13 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     return prompts[Math.floor(Math.random() * prompts.length)];
   };
 
+  const updateUserSettings = (newSettings: any) => {
+    // Here you would typically call an API to update user settings
+    console.log('Updating user settings:', newSettings);
+    // For now, we'll just log the settings update
+    // In a real app, you'd merge these settings with the user object
+  };
+
   return {
     user,
     ncopBalance,
@@ -587,5 +594,6 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     updateAppointmentStatus,
     activateCampaign,
     generateAdCopy,
+    updateUserSettings,
   };
 });

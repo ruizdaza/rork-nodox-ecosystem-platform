@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -33,10 +34,30 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const menuItems = [
-    { icon: Settings, title: "Configuración", subtitle: "Personaliza tu experiencia" },
-    { icon: Bell, title: "Notificaciones", subtitle: "Gestiona tus alertas" },
-    { icon: Shield, title: "Privacidad y Seguridad", subtitle: "Controla tu información" },
-    { icon: HelpCircle, title: "Ayuda y Soporte", subtitle: "Obtén asistencia 24/7" },
+    { 
+      icon: Settings, 
+      title: "Configuración", 
+      subtitle: "Personaliza tu experiencia",
+      onPress: () => router.push('/settings')
+    },
+    { 
+      icon: Bell, 
+      title: "Notificaciones", 
+      subtitle: "Gestiona tus alertas",
+      onPress: () => router.push('/settings')
+    },
+    { 
+      icon: Shield, 
+      title: "Privacidad y Seguridad", 
+      subtitle: "Controla tu información",
+      onPress: () => router.push('/settings')
+    },
+    { 
+      icon: HelpCircle, 
+      title: "Ayuda y Soporte", 
+      subtitle: "Obtén asistencia 24/7",
+      onPress: () => Alert.alert("Ayuda y Soporte", "Contacta con nosotros:\n\nEmail: soporte@nodox.com\nTeléfono: +1 (555) 123-4567\nHorario: 24/7")
+    },
   ];
 
   const statsItems = [
@@ -167,7 +188,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Configuración</Text>
           {menuItems.map((item, index) => (
-            <TouchableOpacity key={index} style={styles.menuItem}>
+            <TouchableOpacity key={index} style={styles.menuItem} onPress={item.onPress}>
               <View style={styles.menuIcon}>
                 <item.icon color="#64748b" size={20} />
               </View>
