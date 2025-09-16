@@ -131,7 +131,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
     membershipType: "premium",
     joinDate: "2024-01-15",
-    roles: ["user", "ally"],
+    roles: ["user", "ally", "referrer"],
     isAlly: true,
   });
 
