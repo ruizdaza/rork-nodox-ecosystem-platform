@@ -150,7 +150,10 @@ export default function ProfileScreen() {
             
             {/* Panel Conecta */}
             {user.roles.includes("referrer") && (
-              <TouchableOpacity style={styles.roleCard}>
+              <TouchableOpacity 
+                style={styles.roleCard}
+                onPress={() => router.push('/referral-dashboard')}
+              >
                 <LinearGradient
                   colors={["#f59e0b", "#d97706"]}
                   style={styles.roleGradient}
