@@ -1092,7 +1092,10 @@ export default function HomeScreen() {
               <Gift color="#2563eb" size={24} />
               <Text style={styles.actionText}>Canjear NCOP</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/earn-points')}
+            >
               <TrendingUp color="#10b981" size={24} />
               <Text style={styles.actionText}>Ganar puntos</Text>
             </TouchableOpacity>
