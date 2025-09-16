@@ -126,28 +126,34 @@ export default function ReferralDashboard() {
   const handleShare = async () => {
     try {
       if (Platform.OS === 'web') {
-        // Check if Web Share API is supported
-        if (navigator.share && navigator.canShare) {
+        // Check if Web Share API is supported and available
+        if (navigator.share) {
           const shareData = {
             title: 'Únete a NodoX',
             text: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis!`,
             url: referralLink,
           };
           
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-          } else {
-            // Fallback to copying to clipboard
-            await handleCopyLink();
-            setShareMessage('Enlace copiado al portapapeles');
-            setTimeout(() => setShareMessage(null), 3000);
+          // Check if the data can be shared before attempting to share
+          if (navigator.canShare && navigator.canShare(shareData)) {
+            try {
+              await navigator.share(shareData);
+              return; // Success, exit early
+            } catch (shareError: any) {
+              console.log('Share was cancelled or failed:', shareError.message);
+              // If user cancelled or permission denied, fall through to clipboard
+              if (shareError.name === 'AbortError') {
+                // User cancelled, don't show error message
+                return;
+              }
+            }
           }
-        } else {
-          // Fallback to copying to clipboard
-          await handleCopyLink();
-          setShareMessage('Enlace copiado al portapapeles');
-          setTimeout(() => setShareMessage(null), 3000);
         }
+        
+        // Fallback to copying to clipboard for web
+        await handleCopyLink();
+        setShareMessage('Enlace copiado al portapapeles');
+        setTimeout(() => setShareMessage(null), 3000);
       } else {
         // Use React Native Share for mobile
         await Share.share({
@@ -155,7 +161,7 @@ export default function ReferralDashboard() {
           url: referralLink,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sharing:", error);
       // Fallback to copying link
       try {
