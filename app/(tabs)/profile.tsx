@@ -56,7 +56,7 @@ export default function ProfileScreen() {
       icon: HelpCircle, 
       title: "Ayuda y Soporte", 
       subtitle: "Obtén asistencia 24/7",
-      onPress: () => Alert.alert("Ayuda y Soporte", "Contacta con nosotros:\n\nEmail: soporte@nodox.com\nTeléfono: +1 (555) 123-4567\nHorario: 24/7")
+      onPress: () => router.push('/help-support')
     },
   ];
 
