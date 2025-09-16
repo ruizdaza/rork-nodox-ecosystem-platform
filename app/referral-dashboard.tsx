@@ -8,6 +8,7 @@ import {
   Share,
   Modal,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -59,6 +60,7 @@ export default function ReferralDashboard() {
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "year">("month");
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   const referralCode = "NODOX" + user.id.slice(-6).toUpperCase();
   const referralLink = `https://nodox.app/join?ref=${referralCode}`;
@@ -123,12 +125,48 @@ export default function ReferralDashboard() {
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis! ${referralLink}`,
-        url: referralLink,
-      });
+      if (Platform.OS === 'web') {
+        // Check if Web Share API is supported
+        if (navigator.share && navigator.canShare) {
+          const shareData = {
+            title: 'Únete a NodoX',
+            text: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis!`,
+            url: referralLink,
+          };
+          
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+          } else {
+            // Fallback to copying to clipboard
+            await handleCopyLink();
+            setShareMessage('Enlace copiado al portapapeles');
+            setTimeout(() => setShareMessage(null), 3000);
+          }
+        } else {
+          // Fallback to copying to clipboard
+          await handleCopyLink();
+          setShareMessage('Enlace copiado al portapapeles');
+          setTimeout(() => setShareMessage(null), 3000);
+        }
+      } else {
+        // Use React Native Share for mobile
+        await Share.share({
+          message: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis! ${referralLink}`,
+          url: referralLink,
+        });
+      }
     } catch (error) {
       console.error("Error sharing:", error);
+      // Fallback to copying link
+      try {
+        await handleCopyLink();
+        setShareMessage('No se pudo compartir, enlace copiado al portapapeles');
+        setTimeout(() => setShareMessage(null), 3000);
+      } catch (copyError) {
+        console.error("Error copying:", copyError);
+        setShareMessage('Error: No se pudo compartir el enlace');
+        setTimeout(() => setShareMessage(null), 3000);
+      }
     }
   };
 
@@ -217,9 +255,9 @@ export default function ReferralDashboard() {
               </TouchableOpacity>
             </View>
             <Text style={styles.referralLink}>{referralLink}</Text>
-            {copySuccess && (
+            {(copySuccess || shareMessage) && (
               <View style={styles.copySuccessMessage}>
-                <Text style={styles.copySuccessText}>{copySuccess}</Text>
+                <Text style={styles.copySuccessText}>{copySuccess || shareMessage}</Text>
               </View>
             )}
             <View style={styles.shareButtons}>
