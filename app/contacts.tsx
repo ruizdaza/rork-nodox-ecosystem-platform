@@ -8,9 +8,12 @@ import {
   Image,
   TextInput,
   Modal,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { 
   ArrowLeft, 
   Search, 
@@ -18,7 +21,9 @@ import {
   MessageCircle,
   Star,
   UserPlus,
-  Users
+  Users,
+  QrCode,
+  X
 } from 'lucide-react-native';
 import { useChat } from '@/hooks/use-chat';
 import { Contact } from '@/types/chat';
@@ -94,6 +99,108 @@ const ContactItem = ({
   );
 };
 
+const QRScannerModal = ({
+  visible,
+  onClose,
+  onScan
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onScan: (data: string) => void;
+}) => {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState<boolean>(true);
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (!isScanning) return;
+    
+    setIsScanning(false);
+    onScan(data);
+    onClose();
+  };
+
+  if (!permission) {
+    return null;
+  }
+
+  if (!permission.granted) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <SafeAreaView style={styles.qrModalContainer}>
+          <View style={styles.qrHeader}>
+            <TouchableOpacity onPress={onClose}>
+              <X size={24} color="#1e293b" />
+            </TouchableOpacity>
+            <Text style={styles.qrTitle}>Escanear QR</Text>
+            <View style={styles.spacer} />
+          </View>
+          
+          <View style={styles.permissionContainer}>
+            <QrCode size={64} color="#cbd5e1" />
+            <Text style={styles.permissionTitle}>Permiso de Cámara Requerido</Text>
+            <Text style={styles.permissionText}>
+              Necesitamos acceso a tu cámara para escanear códigos QR
+            </Text>
+            <TouchableOpacity 
+              style={styles.permissionButton}
+              onPress={requestPermission}
+            >
+              <Text style={styles.permissionButtonText}>Permitir Cámara</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <View style={styles.qrModalContainer}>
+        <SafeAreaView style={styles.qrHeader}>
+          <TouchableOpacity onPress={onClose} style={styles.qrCloseButton}>
+            <X size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.qrTitleWhite}>Escanear Código QR</Text>
+          <View style={styles.spacer} />
+        </SafeAreaView>
+        
+        {Platform.OS !== 'web' ? (
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+          >
+            <View style={styles.qrOverlay}>
+              <View style={styles.qrFrame} />
+              <Text style={styles.qrInstructions}>
+                Apunta la cámara hacia el código QR del contacto
+              </Text>
+            </View>
+          </CameraView>
+        ) : (
+          <View style={styles.webFallback}>
+            <QrCode size={64} color="#cbd5e1" />
+            <Text style={styles.webFallbackTitle}>Escáner QR no disponible en web</Text>
+            <Text style={styles.webFallbackText}>
+              Esta función solo está disponible en dispositivos móviles
+            </Text>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+};
+
 const AddContactModal = ({ 
   visible, 
   onClose, 
@@ -106,15 +213,16 @@ const AddContactModal = ({
   const [name, setName] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [email, setEmail] = useState<string>('');
+  const [showQRScanner, setShowQRScanner] = useState<boolean>(false);
 
   const handleAdd = () => {
     if (!name.trim()) {
-      console.log('El nombre es requerido');
+      Alert.alert('Error', 'El nombre es requerido');
       return;
     }
 
     if (!phone.trim() && !email.trim()) {
-      console.log('Debes proporcionar al menos un teléfono o email');
+      Alert.alert('Error', 'Debes proporcionar al menos un teléfono o email');
       return;
     }
 
@@ -125,9 +233,40 @@ const AddContactModal = ({
       isFavorite: false,
     });
 
+    resetForm();
+    onClose();
+  };
+
+  const resetForm = () => {
     setName('');
     setPhone('');
     setEmail('');
+  };
+
+  const handleQRScan = (data: string) => {
+    try {
+      const contactData = JSON.parse(data);
+      
+      if (contactData.name) setName(contactData.name);
+      if (contactData.phone) setPhone(contactData.phone);
+      if (contactData.email) setEmail(contactData.email);
+      
+      Alert.alert('Éxito', 'Datos del contacto cargados desde QR');
+    } catch {
+      if (data.includes('@')) {
+        setEmail(data);
+        Alert.alert('Éxito', 'Email cargado desde QR');
+      } else if (data.match(/^[+]?[0-9\s-()]+$/)) {
+        setPhone(data);
+        Alert.alert('Éxito', 'Teléfono cargado desde QR');
+      } else {
+        Alert.alert('Error', 'El código QR no contiene información de contacto válida');
+      }
+    }
+  };
+
+  const handleClose = () => {
+    resetForm();
     onClose();
   };
 
@@ -140,7 +279,7 @@ const AddContactModal = ({
     >
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={handleClose}>
             <Text style={styles.modalCancel}>Cancelar</Text>
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Agregar Contacto</Text>
@@ -150,6 +289,25 @@ const AddContactModal = ({
         </View>
 
         <View style={styles.modalContent}>
+          <View style={styles.qrScanSection}>
+            <TouchableOpacity 
+              style={styles.qrScanButton}
+              onPress={() => setShowQRScanner(true)}
+            >
+              <QrCode size={24} color="#2563eb" />
+              <Text style={styles.qrScanButtonText}>Escanear Código QR</Text>
+            </TouchableOpacity>
+            <Text style={styles.qrScanNote}>
+              Escanea el código QR del contacto para llenar automáticamente los datos
+            </Text>
+          </View>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o ingresa manualmente</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Nombre *</Text>
             <TextInput
@@ -190,6 +348,12 @@ const AddContactModal = ({
             * Campos requeridos. Debes proporcionar al menos un teléfono o email.
           </Text>
         </View>
+
+        <QRScannerModal
+          visible={showQRScanner}
+          onClose={() => setShowQRScanner(false)}
+          onScan={handleQRScan}
+        />
       </SafeAreaView>
     </Modal>
   );
@@ -610,5 +774,156 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontStyle: 'italic',
     marginTop: 8,
+  },
+  qrScanSection: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  qrScanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderWidth: 2,
+    borderColor: '#2563eb',
+    borderStyle: 'dashed',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 12,
+    marginBottom: 8,
+  },
+  qrScanButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  qrScanNote: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e2e8f0',
+  },
+  dividerText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  qrModalContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  qrHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  qrCloseButton: {
+    padding: 8,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  qrTitleWhite: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  camera: {
+    flex: 1,
+  },
+  qrOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  qrFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  qrInstructions: {
+    color: '#ffffff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 24,
+    paddingHorizontal: 32,
+    lineHeight: 24,
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#ffffff',
+  },
+  permissionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  permissionText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  permissionButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  permissionButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  webFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#f8fafc',
+  },
+  webFallbackTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  webFallbackText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  spacer: {
+    width: 24,
   },
 });
