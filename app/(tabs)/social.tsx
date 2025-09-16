@@ -283,7 +283,7 @@ export default function SocialScreen() {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <NodoXLogo size="small" showText={false} />
-          <Text style={styles.headerTitle}>Comunidad</Text>
+          <Text style={styles.headerTitle}>Momentos</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerButton}>
@@ -364,7 +364,7 @@ export default function SocialScreen() {
             <ScrollView style={styles.createPostContent} showsVerticalScrollIndicator={false}>
               <TextInput
                 style={styles.postTextInput}
-                placeholder="¿Qué quieres compartir con la comunidad?"
+                placeholder="¿Qué quieres compartir en Momentos?"
                 value={postText}
                 onChangeText={setPostText}
                 multiline
