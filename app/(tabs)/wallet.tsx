@@ -24,6 +24,7 @@ import {
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import NodoXLogo from "@/components/NodoXLogo";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function WalletScreen() {
   const { ncopBalance, ncopHistory, monthlyEarnings } = useNodoX();
@@ -37,6 +38,7 @@ export default function WalletScreen() {
             <NodoXLogo size="small" showText={false} />
             <Text style={styles.headerTitle}>Mi Billetera NCOP</Text>
           </View>
+          <NotificationBell />
         </View>
 
         {/* Balance Card */}
@@ -113,7 +115,7 @@ export default function WalletScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Historial de transacciones</Text>
           {ncopHistory.map((transaction, index) => (
-            <View key={index} style={styles.transactionItem}>
+            <View key={transaction.id || index} style={styles.transactionItem}>
               <View style={[
                 styles.transactionIcon,
                 { backgroundColor: transaction.type === "earned" ? "#dcfce7" : "#fef2f2" }
@@ -162,6 +164,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
   },

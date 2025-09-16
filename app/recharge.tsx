@@ -11,12 +11,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { ArrowLeft, CreditCard, Smartphone, Plus, Zap } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
+import { useNotifications } from "@/hooks/use-notifications";
 import NodoXLogo from "@/components/NodoXLogo";
 
 const RECHARGE_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 export default function RechargeScreen() {
   const { copBalance, rechargeCOP } = useNodoX();
+  const { notifyRechargeSuccess } = useNotifications();
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"PSE" | "CARD">("PSE");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -32,9 +34,12 @@ export default function RechargeScreen() {
     try {
       await rechargeCOP(selectedAmount, paymentMethod);
       
+      // Send notification
+      notifyRechargeSuccess(selectedAmount, paymentMethod);
+      
       Alert.alert(
         "Recarga exitosa", 
-        `Has recargado $${selectedAmount.toLocaleString()} COP a tu billetera`,
+        `Has recargado ${selectedAmount.toLocaleString()} COP a tu billetera`,
         [{ text: "OK", onPress: () => router.back() }]
       );
     } catch (error) {
@@ -160,7 +165,7 @@ export default function RechargeScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Bonificación NCOP (5%):</Text>
-              <Text style={styles.summaryValue}>+{Math.floor(selectedAmount * 0.05).toLocaleString()} NCOP</Text>
+              <Text style={styles.summaryValue}>+{Math.floor(selectedAmount * 0.05 / 100).toLocaleString()} NCOP</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Método de pago:</Text>

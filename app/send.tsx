@@ -16,6 +16,7 @@ import { router } from "expo-router";
 import { ArrowLeft, Send, User, Mail, Phone, UserPlus, Check, X } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import { useChat } from "@/hooks/use-chat";
+import { useNotifications } from "@/hooks/use-notifications";
 import { Contact } from "@/types/chat";
 import NodoXLogo from "@/components/NodoXLogo";
 
@@ -230,6 +231,7 @@ const AddRecipientModal = ({
 export default function SendScreen() {
   const { ncopBalance, copBalance, sendNCOP, sendCOP } = useNodoX();
   const { contacts } = useChat();
+  const { notifyPaymentSent } = useNotifications();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedRecipient, setSelectedRecipient] = useState<RecipientData | null>(null);
   const [amount, setAmount] = useState<string>("");
@@ -315,12 +317,16 @@ export default function SendScreen() {
         await sendCOP(recipientIdentifier, numAmount);
       }
 
+      // Send notification
+      notifyPaymentSent(numAmount, selectedRecipient.name, currency);
+
       Alert.alert(
         "Envío exitoso", 
         `Has enviado ${numAmount} ${currency} a ${selectedRecipient.name}`,
         [{ text: "OK", onPress: () => router.back() }]
       );
-    } catch {
+    } catch (error) {
+      console.log('Send error:', error);
       Alert.alert("Error", "No se pudo completar el envío. Intenta nuevamente.");
     } finally {
       setIsLoading(false);
