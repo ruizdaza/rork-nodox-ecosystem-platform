@@ -126,33 +126,9 @@ export default function ReferralDashboard() {
   const handleShare = async () => {
     try {
       if (Platform.OS === 'web') {
-        // Check if Web Share API is supported and available
-        if (navigator.share) {
-          const shareData = {
-            title: 'Únete a NodoX',
-            text: `¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis!`,
-            url: referralLink,
-          };
-          
-          // Check if the data can be shared before attempting to share
-          if (navigator.canShare && navigator.canShare(shareData)) {
-            try {
-              await navigator.share(shareData);
-              return; // Success, exit early
-            } catch (shareError: any) {
-              console.log('Share was cancelled or failed:', shareError.message);
-              // If user cancelled or permission denied, fall through to clipboard
-              if (shareError.name === 'AbortError') {
-                // User cancelled, don't show error message
-                return;
-              }
-            }
-          }
-        }
-        
-        // Fallback to copying to clipboard for web
+        // For web, always use clipboard as primary method since Web Share API is unreliable
         await handleCopyLink();
-        setShareMessage('Enlace copiado al portapapeles');
+        setShareMessage('Enlace copiado al portapapeles - ¡Compártelo donde quieras!');
         setTimeout(() => setShareMessage(null), 3000);
       } else {
         // Use React Native Share for mobile
@@ -166,7 +142,7 @@ export default function ReferralDashboard() {
       // Fallback to copying link
       try {
         await handleCopyLink();
-        setShareMessage('No se pudo compartir, enlace copiado al portapapeles');
+        setShareMessage('Enlace copiado al portapapeles');
         setTimeout(() => setShareMessage(null), 3000);
       } catch (copyError) {
         console.error("Error copying:", copyError);
