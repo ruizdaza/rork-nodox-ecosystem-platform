@@ -107,8 +107,8 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
   const [expoPushToken, setExpoPushToken] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
   const loadNotifications = useCallback(async () => {
     try {
