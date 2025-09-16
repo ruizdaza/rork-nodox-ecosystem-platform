@@ -8,6 +8,9 @@ import {
   Image,
   FlatList,
   Platform,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -19,7 +22,9 @@ import {
   Camera,
   Plus,
   Search,
-  Pin
+  Pin,
+  X,
+  Send
 } from "lucide-react-native";
 import { useSocialFeed } from "@/hooks/use-social-feed";
 import { useChat } from "@/hooks/use-chat";
@@ -106,8 +111,24 @@ const ChatItem = ({ chat }: { chat: Chat }) => {
 
 export default function SocialScreen() {
   const [activeTab, setActiveTab] = useState<"feed" | "chat">("feed");
-  const { posts } = useSocialFeed();
+  const [selectedPost, setSelectedPost] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState<string>("");
+  const { posts, toggleLike, toggleCommentLike, addComment } = useSocialFeed();
   const { chats, isLoading } = useChat();
+
+  const selectedPostData = posts.find(post => post.id === selectedPost);
+
+  const handleAddComment = () => {
+    if (commentText.trim() && selectedPost) {
+      addComment(selectedPost, commentText.trim());
+      setCommentText("");
+    }
+  };
+
+  const handleCloseComments = () => {
+    setSelectedPost(null);
+    setCommentText("");
+  };
 
   const sortedChats = React.useMemo(() => {
     return [...chats].sort((a, b) => {
@@ -169,7 +190,10 @@ export default function SocialScreen() {
           )}
 
           <View style={styles.postActions}>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => toggleLike(post.id)}
+            >
               <Heart 
                 color={post.liked ? "#ef4444" : "#64748b"} 
                 size={20} 
@@ -179,9 +203,12 @@ export default function SocialScreen() {
                 {post.likes}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setSelectedPost(post.id)}
+            >
               <MessageCircle color="#64748b" size={20} />
-              <Text style={styles.actionText}>{post.comments}</Text>
+              <Text style={styles.actionText}>{post.comments.length}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton}>
               <Share color="#64748b" size={20} />
@@ -259,6 +286,106 @@ export default function SocialScreen() {
 
       {/* Content */}
       {activeTab === "feed" ? renderFeed() : renderChat()}
+
+      {/* Comments Modal */}
+      <Modal
+        visible={selectedPost !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <KeyboardAvoidingView 
+            style={styles.modalContent}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Comentarios</Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={handleCloseComments}
+              >
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Original Post */}
+            {selectedPostData && (
+              <View style={styles.originalPost}>
+                <View style={styles.postHeader}>
+                  <Image source={{ uri: selectedPostData.user.avatar }} style={styles.avatar} />
+                  <View style={styles.userInfo}>
+                    <View style={styles.userNameContainer}>
+                      <Text style={styles.userName}>{selectedPostData.user.name}</Text>
+                      {selectedPostData.user.verified && (
+                        <View style={styles.verifiedBadge}>
+                          <Text style={styles.verifiedText}>✓</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.postTime}>{selectedPostData.timestamp}</Text>
+                  </View>
+                </View>
+                <Text style={styles.postContent}>{selectedPostData.content}</Text>
+                {selectedPostData.image && (
+                  <Image source={{ uri: selectedPostData.image }} style={styles.modalPostImage} />
+                )}
+              </View>
+            )}
+
+            {/* Comments List */}
+            <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
+              {selectedPostData?.comments.map((comment) => (
+                <View key={comment.id} style={styles.commentItem}>
+                  <Image source={{ uri: comment.user.avatar }} style={styles.commentAvatar} />
+                  <View style={styles.commentContent}>
+                    <View style={styles.commentHeader}>
+                      <Text style={styles.commentUserName}>{comment.user.name}</Text>
+                      <Text style={styles.commentTime}>{comment.timestamp}</Text>
+                    </View>
+                    <Text style={styles.commentText}>{comment.content}</Text>
+                    <TouchableOpacity 
+                      style={styles.commentLikeButton}
+                      onPress={() => selectedPost && toggleCommentLike(selectedPost, comment.id)}
+                    >
+                      <Heart 
+                        color={comment.liked ? "#ef4444" : "#64748b"} 
+                        size={14} 
+                        fill={comment.liked ? "#ef4444" : "none"}
+                      />
+                      <Text style={[styles.commentLikeText, comment.liked && styles.likedText]}>
+                        {comment.likes}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Add Comment */}
+            <View style={styles.addCommentContainer}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Escribe un comentario..."
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity 
+                style={[styles.sendButton, !commentText.trim() && styles.sendButtonDisabled]}
+                onPress={handleAddComment}
+                disabled={!commentText.trim()}
+              >
+                <Send 
+                  color={commentText.trim() ? "#2563eb" : "#94a3b8"} 
+                  size={20} 
+                />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -585,5 +712,132 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#ffffff",
+  },
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  modalContent: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  originalPost: {
+    backgroundColor: "#ffffff",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    marginBottom: 8,
+  },
+  modalPostImage: {
+    width: "100%",
+    height: 160,
+    marginTop: 12,
+  },
+  commentsList: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+  },
+  commentItem: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    gap: 8,
+  },
+  commentUserName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  commentTime: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  commentText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  commentLikeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+  },
+  commentLikeText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  addCommentContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    gap: 12,
+  },
+  commentInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    maxHeight: 100,
+    backgroundColor: "#f8fafc",
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
 });
