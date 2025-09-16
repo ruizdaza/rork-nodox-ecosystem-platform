@@ -26,7 +26,8 @@ import {
   X,
   Send,
   Image as ImageIcon,
-  Smile
+  Smile,
+  Users
 } from "lucide-react-native";
 import { useSocialFeed } from "@/hooks/use-social-feed";
 import { useChat } from "@/hooks/use-chat";
@@ -255,6 +256,12 @@ export default function SocialScreen() {
           <TouchableOpacity style={styles.searchInput}>
             <Search size={16} color="#64748b" />
             <Text style={styles.searchText}>Buscar conversaciones...</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.contactsButton}
+            onPress={() => router.push('/contacts')}
+          >
+            <Users size={20} color="#2563eb" />
           </TouchableOpacity>
         </View>
 
@@ -700,11 +707,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   searchContainer: {
+    flexDirection: "row",
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: "#ffffff",
+    alignItems: "center",
+    gap: 12,
   },
   searchInput: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8fafc",
@@ -712,6 +723,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
+  },
+  contactsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
   },
   searchText: {
     fontSize: 16,

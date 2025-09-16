@@ -4,6 +4,22 @@ export interface User {
   avatar?: string;
   isOnline: boolean;
   lastSeen?: Date;
+  phone?: string;
+  email?: string;
+  isContact?: boolean;
+}
+
+export interface Contact {
+  id: string;
+  userId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  avatar?: string;
+  isOnline: boolean;
+  lastSeen?: Date;
+  addedAt: Date;
+  isFavorite: boolean;
 }
 
 export interface Message {
@@ -34,6 +50,7 @@ export interface ChatState {
   chats: Chat[];
   messages: Record<string, Message[]>;
   users: Record<string, User>;
+  contacts: Contact[];
   currentUserId: string;
   activeChat?: string;
 }

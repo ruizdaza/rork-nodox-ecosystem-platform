@@ -2,12 +2,13 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
-import { Chat, Message, User } from '@/types/chat';
+import { Chat, Message, User, Contact } from '@/types/chat';
 
 const STORAGE_KEYS = {
   CHATS: 'nodox_chats',
   MESSAGES: 'nodox_messages',
   USERS: 'nodox_users',
+  CONTACTS: 'nodox_contacts',
 };
 
 const mockUsers: Record<string, User> = {
@@ -16,6 +17,9 @@ const mockUsers: Record<string, User> = {
     name: 'Soporte NodoX',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
     isOnline: true,
+    phone: '+57 300 123 4567',
+    email: 'soporte@nodox.com',
+    isContact: true,
   },
   'user-2': {
     id: 'user-2',
@@ -23,12 +27,18 @@ const mockUsers: Record<string, User> = {
     avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face',
     isOnline: false,
     lastSeen: new Date(Date.now() - 1000 * 60 * 30),
+    phone: '+57 301 234 5678',
+    email: 'maria@example.com',
+    isContact: true,
   },
   'user-3': {
     id: 'user-3',
     name: 'Carlos Rodríguez',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
     isOnline: true,
+    phone: '+57 302 345 6789',
+    email: 'carlos@example.com',
+    isContact: true,
   },
   'user-4': {
     id: 'user-4',
@@ -36,6 +46,9 @@ const mockUsers: Record<string, User> = {
     avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
     isOnline: false,
     lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2),
+    phone: '+57 303 456 7890',
+    email: 'ana@example.com',
+    isContact: true,
   },
 };
 
@@ -199,6 +212,55 @@ const mockMessages: Record<string, Message[]> = {
   ],
 };
 
+const mockContacts: Contact[] = [
+  {
+    id: 'contact-1',
+    userId: 'user-1',
+    name: 'Soporte NodoX',
+    phone: '+57 300 123 4567',
+    email: 'soporte@nodox.com',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+    isOnline: true,
+    addedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
+    isFavorite: true,
+  },
+  {
+    id: 'contact-2',
+    userId: 'user-2',
+    name: 'María González',
+    phone: '+57 301 234 5678',
+    email: 'maria@example.com',
+    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop&crop=face',
+    isOnline: false,
+    lastSeen: new Date(Date.now() - 1000 * 60 * 30),
+    addedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
+    isFavorite: false,
+  },
+  {
+    id: 'contact-3',
+    userId: 'user-3',
+    name: 'Carlos Rodríguez',
+    phone: '+57 302 345 6789',
+    email: 'carlos@example.com',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    isOnline: true,
+    addedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
+    isFavorite: true,
+  },
+  {
+    id: 'contact-4',
+    userId: 'user-4',
+    name: 'Ana López',
+    phone: '+57 303 456 7890',
+    email: 'ana@example.com',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
+    isOnline: false,
+    lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2),
+    addedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
+    isFavorite: false,
+  },
+];
+
 export const [ChatProvider, useChat] = createContextHook(() => {
   const [activeChat, setActiveChat] = useState<string | undefined>();
   const queryClient = useQueryClient();
@@ -239,6 +301,18 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     },
   });
 
+  const contactsQuery = useQuery({
+    queryKey: ['contacts'],
+    queryFn: async (): Promise<Contact[]> => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEYS.CONTACTS);
+        return stored ? JSON.parse(stored) : mockContacts;
+      } catch {
+        return mockContacts;
+      }
+    },
+  });
+
   const saveChats = useMutation({
     mutationFn: async (chats: Chat[]) => {
       await AsyncStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(chats));
@@ -259,8 +333,30 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     },
   });
 
+  const saveContacts = useMutation({
+    mutationFn: async (contacts: Contact[]) => {
+      await AsyncStorage.setItem(STORAGE_KEYS.CONTACTS, JSON.stringify(contacts));
+      return contacts;
+    },
+    onSuccess: (contacts) => {
+      queryClient.setQueryData(['contacts'], contacts);
+    },
+  });
+
+  const saveUsers = useMutation({
+    mutationFn: async (users: Record<string, User>) => {
+      await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+      return users;
+    },
+    onSuccess: (users) => {
+      queryClient.setQueryData(['chat-users'], users);
+    },
+  });
+
   const { mutateAsync: saveMessagesAsync } = saveMessages;
   const { mutateAsync: saveChatsAsync } = saveChats;
+  const { mutateAsync: saveContactsAsync } = saveContacts;
+  const { mutateAsync: saveUsersAsync } = saveUsers;
 
   const sendMessage = useCallback(async (chatId: string, content: string, type: Message['type'] = 'text') => {
     const currentMessages = messagesQuery.data || {};
@@ -336,10 +432,90 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     return (chatsQuery.data || []).reduce((total, chat) => total + chat.unreadCount, 0);
   }, [chatsQuery.data]);
 
+  const addContact = useCallback(async (contactData: Omit<Contact, 'id' | 'userId' | 'addedAt' | 'isOnline' | 'lastSeen'>) => {
+    const currentContacts = contactsQuery.data || [];
+    const currentUsers = usersQuery.data || {};
+    
+    const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newContactId = `contact-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const newUser: User = {
+      id: newUserId,
+      name: contactData.name,
+      phone: contactData.phone,
+      email: contactData.email,
+      avatar: contactData.avatar,
+      isOnline: false,
+      isContact: true,
+    };
+    
+    const newContact: Contact = {
+      ...contactData,
+      id: newContactId,
+      userId: newUserId,
+      addedAt: new Date(),
+      isOnline: false,
+    };
+    
+    const updatedContacts = [...currentContacts, newContact];
+    const updatedUsers = { ...currentUsers, [newUserId]: newUser };
+    
+    await Promise.all([
+      saveContactsAsync(updatedContacts),
+      saveUsersAsync(updatedUsers),
+    ]);
+  }, [contactsQuery.data, usersQuery.data, saveContactsAsync, saveUsersAsync]);
+
+  const toggleFavoriteContact = useCallback(async (contactId: string) => {
+    const currentContacts = contactsQuery.data || [];
+    
+    const updatedContacts = currentContacts.map(contact => 
+      contact.id === contactId 
+        ? { ...contact, isFavorite: !contact.isFavorite }
+        : contact
+    );
+    
+    await saveContactsAsync(updatedContacts);
+  }, [contactsQuery.data, saveContactsAsync]);
+
+  const startChatWithContact = useCallback(async (userId: string): Promise<string> => {
+    const currentChats = chatsQuery.data || [];
+    
+    const existingChat = currentChats.find(chat => 
+      chat.type === 'individual' && 
+      chat.participants.includes(userId) && 
+      chat.participants.includes('current-user')
+    );
+    
+    if (existingChat) {
+      setActiveChat(existingChat.id);
+      return existingChat.id;
+    }
+    
+    const newChatId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newChat: Chat = {
+      id: newChatId,
+      type: 'individual',
+      participants: ['current-user', userId],
+      unreadCount: 0,
+      isArchived: false,
+      isPinned: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    const updatedChats = [...currentChats, newChat];
+    await saveChatsAsync(updatedChats);
+    
+    setActiveChat(newChatId);
+    return newChatId;
+  }, [chatsQuery.data, saveChatsAsync, setActiveChat]);
+
   return useMemo(() => ({
     chats: chatsQuery.data || [],
     messages: messagesQuery.data || {},
     users: usersQuery.data || {},
+    contacts: contactsQuery.data || [],
     activeChat,
     setActiveChat,
     sendMessage,
@@ -348,12 +524,16 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     getChatParticipants,
     getChatName,
     getTotalUnreadCount,
-    isLoading: chatsQuery.isLoading || messagesQuery.isLoading || usersQuery.isLoading,
+    addContact,
+    toggleFavoriteContact,
+    startChatWithContact,
+    isLoading: chatsQuery.isLoading || messagesQuery.isLoading || usersQuery.isLoading || contactsQuery.isLoading,
     currentUserId: 'current-user',
   }), [
     chatsQuery.data,
     messagesQuery.data,
     usersQuery.data,
+    contactsQuery.data,
     activeChat,
     setActiveChat,
     sendMessage,
@@ -362,8 +542,12 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     getChatParticipants,
     getChatName,
     getTotalUnreadCount,
+    addContact,
+    toggleFavoriteContact,
+    startChatWithContact,
     chatsQuery.isLoading,
     messagesQuery.isLoading,
     usersQuery.isLoading,
+    contactsQuery.isLoading,
   ]);
 });
