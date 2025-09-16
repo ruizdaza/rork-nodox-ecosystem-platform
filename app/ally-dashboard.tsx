@@ -51,6 +51,18 @@ import {
   DollarSign,
   Hash,
   Percent,
+  PieChart,
+  LineChart,
+  Activity,
+  Target,
+  Award,
+  MapPin,
+  Star,
+  Download,
+  FileText,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import NodoXLogo from "@/components/NodoXLogo";
@@ -94,6 +106,10 @@ export default function AllyDashboard() {
   const [posAmountReceived, setPosAmountReceived] = useState<string>("");
   const [posTransactionComplete, setPosTransactionComplete] = useState<boolean>(false);
   const [posLastTransaction, setPosLastTransaction] = useState<any>(null);
+  
+  // Analytics State
+  const [analyticsTimeRange, setAnalyticsTimeRange] = useState<"7d" | "30d" | "90d" | "1y">("30d");
+  const [analyticsView, setAnalyticsView] = useState<"overview" | "sales" | "products" | "customers" | "staff">("overview");
 
   const menuItems = [
     { id: "overview", icon: BarChart3, title: "Resumen", color: "#2563eb" },
@@ -1060,6 +1076,522 @@ export default function AllyDashboard() {
     </ScrollView>
   );
 
+  const renderAnalytics = () => {
+    // Mock data for analytics
+    const salesData = {
+      "7d": { revenue: 15420, transactions: 45, avgTicket: 342, growth: 12.5 },
+      "30d": { revenue: 68500, transactions: 187, avgTicket: 366, growth: 8.3 },
+      "90d": { revenue: 195300, transactions: 542, avgTicket: 360, growth: 15.7 },
+      "1y": { revenue: 847200, transactions: 2341, avgTicket: 362, growth: 22.1 }
+    };
+
+    const topProducts = [
+      { name: "Limpieza Dental", sales: 45, revenue: 22500, growth: 15.2 },
+      { name: "Blanqueamiento", sales: 23, revenue: 18400, growth: 8.7 },
+      { name: "Ortodoncia", sales: 12, revenue: 36000, growth: 25.3 },
+      { name: "Extracción", sales: 18, revenue: 9000, growth: -5.2 },
+      { name: "Endodoncia", sales: 8, revenue: 12000, growth: 12.1 }
+    ];
+
+    const customerMetrics = {
+      total: 1247,
+      new: 89,
+      returning: 158,
+      retention: 78.5,
+      satisfaction: 4.7
+    };
+
+    const staffPerformance = services.flatMap(service => service.staff).map(staff => ({
+      ...staff,
+      appointments: Math.floor(Math.random() * 50) + 20,
+      revenue: Math.floor(Math.random() * 15000) + 5000,
+      rating: (Math.random() * 1.5 + 3.5).toFixed(1),
+      efficiency: Math.floor(Math.random() * 30) + 70
+    }));
+
+    const currentData = salesData[analyticsTimeRange];
+
+    const renderAnalyticsOverview = () => (
+      <View>
+        {/* Key Metrics */}
+        <View style={styles.analyticsMetricsGrid}>
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricHeader}>
+              <DollarSign color="#059669" size={20} />
+              <View style={[styles.analyticsGrowthBadge, { backgroundColor: currentData.growth > 0 ? '#dcfce7' : '#fef2f2' }]}>
+                <TrendingUp color={currentData.growth > 0 ? '#059669' : '#dc2626'} size={12} />
+                <Text style={[styles.analyticsGrowthText, { color: currentData.growth > 0 ? '#059669' : '#dc2626' }]}>
+                  {currentData.growth > 0 ? '+' : ''}{currentData.growth}%
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.analyticsMetricValue}>${currentData.revenue.toLocaleString()}</Text>
+            <Text style={styles.analyticsMetricLabel}>Ingresos Totales</Text>
+          </View>
+
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricHeader}>
+              <ShoppingCart color="#2563eb" size={20} />
+              <View style={styles.analyticsGrowthBadge}>
+                <Activity color="#2563eb" size={12} />
+                <Text style={styles.analyticsGrowthText}>{currentData.transactions}</Text>
+              </View>
+            </View>
+            <Text style={styles.analyticsMetricValue}>{currentData.transactions}</Text>
+            <Text style={styles.analyticsMetricLabel}>Transacciones</Text>
+          </View>
+
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricHeader}>
+              <Target color="#7c3aed" size={20} />
+              <View style={styles.analyticsGrowthBadge}>
+                <DollarSign color="#7c3aed" size={12} />
+              </View>
+            </View>
+            <Text style={styles.analyticsMetricValue}>${currentData.avgTicket}</Text>
+            <Text style={styles.analyticsMetricLabel}>Ticket Promedio</Text>
+          </View>
+
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricHeader}>
+              <Users color="#ea580c" size={20} />
+              <View style={styles.analyticsGrowthBadge}>
+                <Star color="#ea580c" size={12} />
+                <Text style={styles.analyticsGrowthText}>{customerMetrics.satisfaction}</Text>
+              </View>
+            </View>
+            <Text style={styles.analyticsMetricValue}>{customerMetrics.total}</Text>
+            <Text style={styles.analyticsMetricLabel}>Clientes Totales</Text>
+          </View>
+        </View>
+
+        {/* Revenue Chart Placeholder */}
+        <View style={styles.analyticsChartCard}>
+          <View style={styles.analyticsChartHeader}>
+            <Text style={styles.analyticsChartTitle}>Tendencia de Ingresos</Text>
+            <View style={styles.analyticsChartLegend}>
+              <View style={styles.analyticsLegendItem}>
+                <View style={[styles.analyticsLegendDot, { backgroundColor: '#2563eb' }]} />
+                <Text style={styles.analyticsLegendText}>Ingresos</Text>
+              </View>
+              <View style={styles.analyticsLegendItem}>
+                <View style={[styles.analyticsLegendDot, { backgroundColor: '#059669' }]} />
+                <Text style={styles.analyticsLegendText}>Transacciones</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.analyticsChartPlaceholder}>
+            <LineChart color="#64748b" size={48} />
+            <Text style={styles.analyticsChartPlaceholderText}>Gráfico de tendencias</Text>
+            <Text style={styles.analyticsChartPlaceholderSubtext}>Visualización de datos en tiempo real</Text>
+          </View>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={styles.analyticsQuickStats}>
+          <View style={styles.analyticsQuickStatItem}>
+            <Clock color="#2563eb" size={16} />
+            <Text style={styles.analyticsQuickStatValue}>2.3h</Text>
+            <Text style={styles.analyticsQuickStatLabel}>Tiempo promedio por cita</Text>
+          </View>
+          <View style={styles.analyticsQuickStatItem}>
+            <MapPin color="#059669" size={16} />
+            <Text style={styles.analyticsQuickStatValue}>95%</Text>
+            <Text style={styles.analyticsQuickStatLabel}>Tasa de asistencia</Text>
+          </View>
+          <View style={styles.analyticsQuickStatItem}>
+            <RefreshCw color="#7c3aed" size={16} />
+            <Text style={styles.analyticsQuickStatValue}>68%</Text>
+            <Text style={styles.analyticsQuickStatLabel}>Clientes recurrentes</Text>
+          </View>
+          <View style={styles.analyticsQuickStatItem}>
+            <Award color="#ea580c" size={16} />
+            <Text style={styles.analyticsQuickStatValue}>4.8</Text>
+            <Text style={styles.analyticsQuickStatLabel}>Calificación promedio</Text>
+          </View>
+        </View>
+      </View>
+    );
+
+    const renderSalesAnalytics = () => (
+      <View>
+        {/* Sales Performance */}
+        <View style={styles.analyticsSalesGrid}>
+          <View style={styles.analyticsSalesCard}>
+            <Text style={styles.analyticsSalesCardTitle}>Ventas por Método de Pago</Text>
+            <View style={styles.analyticsPaymentMethods}>
+              <View style={styles.analyticsPaymentMethod}>
+                <View style={styles.analyticsPaymentMethodInfo}>
+                  <CreditCard color="#2563eb" size={16} />
+                  <Text style={styles.analyticsPaymentMethodName}>Tarjeta</Text>
+                </View>
+                <Text style={styles.analyticsPaymentMethodValue}>45%</Text>
+              </View>
+              <View style={styles.analyticsPaymentMethod}>
+                <View style={styles.analyticsPaymentMethodInfo}>
+                  <Banknote color="#059669" size={16} />
+                  <Text style={styles.analyticsPaymentMethodName}>Efectivo</Text>
+                </View>
+                <Text style={styles.analyticsPaymentMethodValue}>32%</Text>
+              </View>
+              <View style={styles.analyticsPaymentMethod}>
+                <View style={styles.analyticsPaymentMethodInfo}>
+                  <DollarSign color="#7c3aed" size={16} />
+                  <Text style={styles.analyticsPaymentMethodName}>NCOP</Text>
+                </View>
+                <Text style={styles.analyticsPaymentMethodValue}>18%</Text>
+              </View>
+              <View style={styles.analyticsPaymentMethod}>
+                <View style={styles.analyticsPaymentMethodInfo}>
+                  <Smartphone color="#ea580c" size={16} />
+                  <Text style={styles.analyticsPaymentMethodName}>Transferencia</Text>
+                </View>
+                <Text style={styles.analyticsPaymentMethodValue}>5%</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.analyticsSalesCard}>
+            <Text style={styles.analyticsSalesCardTitle}>Horarios de Mayor Venta</Text>
+            <View style={styles.analyticsTimeSlots}>
+              {[
+                { time: "9:00 - 11:00", percentage: 25, amount: "$12,500" },
+                { time: "11:00 - 13:00", percentage: 35, amount: "$17,850" },
+                { time: "14:00 - 16:00", percentage: 30, amount: "$15,300" },
+                { time: "16:00 - 18:00", percentage: 10, amount: "$5,100" }
+              ].map((slot, index) => (
+                <View key={index} style={styles.analyticsTimeSlot}>
+                  <Text style={styles.analyticsTimeSlotTime}>{slot.time}</Text>
+                  <View style={styles.analyticsTimeSlotBar}>
+                    <View style={[styles.analyticsTimeSlotFill, { width: `${slot.percentage}%` }]} />
+                  </View>
+                  <Text style={styles.analyticsTimeSlotAmount}>{slot.amount}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Monthly Comparison */}
+        <View style={styles.analyticsComparisonCard}>
+          <Text style={styles.analyticsComparisonTitle}>Comparación Mensual</Text>
+          <View style={styles.analyticsComparisonGrid}>
+            {[
+              { month: "Enero", revenue: 45200, growth: 12.3 },
+              { month: "Febrero", revenue: 52100, growth: 15.2 },
+              { month: "Marzo", revenue: 48900, growth: -6.1 },
+              { month: "Abril", revenue: 58700, growth: 20.0 }
+            ].map((month, index) => (
+              <View key={index} style={styles.analyticsComparisonItem}>
+                <Text style={styles.analyticsComparisonMonth}>{month.month}</Text>
+                <Text style={styles.analyticsComparisonRevenue}>${month.revenue.toLocaleString()}</Text>
+                <View style={[styles.analyticsComparisonGrowth, { backgroundColor: month.growth > 0 ? '#dcfce7' : '#fef2f2' }]}>
+                  {month.growth > 0 ? (
+                    <TrendingUp color="#059669" size={12} />
+                  ) : (
+                    <TrendingDown color="#dc2626" size={12} />
+                  )}
+                  <Text style={[styles.analyticsComparisonGrowthText, { color: month.growth > 0 ? '#059669' : '#dc2626' }]}>
+                    {month.growth > 0 ? '+' : ''}{month.growth}%
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+
+    const renderProductAnalytics = () => (
+      <View>
+        {/* Top Products */}
+        <View style={styles.analyticsTopProductsCard}>
+          <Text style={styles.analyticsTopProductsTitle}>Productos/Servicios Más Vendidos</Text>
+          {topProducts.map((product, index) => (
+            <View key={index} style={styles.analyticsTopProductItem}>
+              <View style={styles.analyticsTopProductRank}>
+                <Text style={styles.analyticsTopProductRankText}>{index + 1}</Text>
+              </View>
+              <View style={styles.analyticsTopProductInfo}>
+                <Text style={styles.analyticsTopProductName}>{product.name}</Text>
+                <Text style={styles.analyticsTopProductStats}>
+                  {product.sales} ventas • ${product.revenue.toLocaleString()}
+                </Text>
+              </View>
+              <View style={[styles.analyticsTopProductGrowth, { backgroundColor: product.growth > 0 ? '#dcfce7' : '#fef2f2' }]}>
+                {product.growth > 0 ? (
+                  <TrendingUp color="#059669" size={12} />
+                ) : (
+                  <TrendingDown color="#dc2626" size={12} />
+                )}
+                <Text style={[styles.analyticsTopProductGrowthText, { color: product.growth > 0 ? '#059669' : '#dc2626' }]}>
+                  {product.growth > 0 ? '+' : ''}{product.growth}%
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Product Categories Performance */}
+        <View style={styles.analyticsCategoriesCard}>
+          <Text style={styles.analyticsCategoriesTitle}>Rendimiento por Categoría</Text>
+          <View style={styles.analyticsCategoriesGrid}>
+            {[
+              { category: "Preventivo", revenue: 28500, percentage: 42, color: "#2563eb" },
+              { category: "Estético", revenue: 19200, percentage: 28, color: "#7c3aed" },
+              { category: "Restaurativo", revenue: 15800, percentage: 23, color: "#059669" },
+              { category: "Quirúrgico", revenue: 4900, percentage: 7, color: "#ea580c" }
+            ].map((cat, index) => (
+              <View key={index} style={styles.analyticsCategoryItem}>
+                <View style={styles.analyticsCategoryHeader}>
+                  <View style={[styles.analyticsCategoryDot, { backgroundColor: cat.color }]} />
+                  <Text style={styles.analyticsCategoryName}>{cat.category}</Text>
+                </View>
+                <Text style={styles.analyticsCategoryRevenue}>${cat.revenue.toLocaleString()}</Text>
+                <Text style={styles.analyticsCategoryPercentage}>{cat.percentage}% del total</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+
+    const renderCustomerAnalytics = () => (
+      <View>
+        {/* Customer Overview */}
+        <View style={styles.analyticsCustomerOverview}>
+          <View style={styles.analyticsCustomerMetric}>
+            <Users color="#2563eb" size={24} />
+            <Text style={styles.analyticsCustomerMetricValue}>{customerMetrics.total}</Text>
+            <Text style={styles.analyticsCustomerMetricLabel}>Total Clientes</Text>
+          </View>
+          <View style={styles.analyticsCustomerMetric}>
+            <UserCheck color="#059669" size={24} />
+            <Text style={styles.analyticsCustomerMetricValue}>{customerMetrics.new}</Text>
+            <Text style={styles.analyticsCustomerMetricLabel}>Nuevos este mes</Text>
+          </View>
+          <View style={styles.analyticsCustomerMetric}>
+            <RefreshCw color="#7c3aed" size={24} />
+            <Text style={styles.analyticsCustomerMetricValue}>{customerMetrics.returning}</Text>
+            <Text style={styles.analyticsCustomerMetricLabel}>Recurrentes</Text>
+          </View>
+          <View style={styles.analyticsCustomerMetric}>
+            <Star color="#ea580c" size={24} />
+            <Text style={styles.analyticsCustomerMetricValue}>{customerMetrics.satisfaction}</Text>
+            <Text style={styles.analyticsCustomerMetricLabel}>Satisfacción</Text>
+          </View>
+        </View>
+
+        {/* Customer Segments */}
+        <View style={styles.analyticsSegmentsCard}>
+          <Text style={styles.analyticsSegmentsTitle}>Segmentación de Clientes</Text>
+          <View style={styles.analyticsSegmentsList}>
+            {[
+              { segment: "VIP (>$5000/año)", count: 45, percentage: 3.6, color: "#7c3aed" },
+              { segment: "Frecuentes (4+ visitas/año)", count: 187, percentage: 15.0, color: "#2563eb" },
+              { segment: "Regulares (2-3 visitas/año)", count: 623, percentage: 49.9, color: "#059669" },
+              { segment: "Ocasionales (1 visita/año)", count: 392, percentage: 31.5, color: "#ea580c" }
+            ].map((segment, index) => (
+              <View key={index} style={styles.analyticsSegmentItem}>
+                <View style={styles.analyticsSegmentInfo}>
+                  <View style={[styles.analyticsSegmentDot, { backgroundColor: segment.color }]} />
+                  <Text style={styles.analyticsSegmentName}>{segment.segment}</Text>
+                </View>
+                <View style={styles.analyticsSegmentStats}>
+                  <Text style={styles.analyticsSegmentCount}>{segment.count}</Text>
+                  <Text style={styles.analyticsSegmentPercentage}>{segment.percentage}%</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Customer Retention */}
+        <View style={styles.analyticsRetentionCard}>
+          <Text style={styles.analyticsRetentionTitle}>Retención de Clientes</Text>
+          <View style={styles.analyticsRetentionChart}>
+            <PieChart color="#64748b" size={64} />
+            <View style={styles.analyticsRetentionStats}>
+              <Text style={styles.analyticsRetentionValue}>{customerMetrics.retention}%</Text>
+              <Text style={styles.analyticsRetentionLabel}>Tasa de retención</Text>
+            </View>
+          </View>
+          <View style={styles.analyticsRetentionBreakdown}>
+            <View style={styles.analyticsRetentionItem}>
+              <Text style={styles.analyticsRetentionItemLabel}>Clientes que regresan</Text>
+              <Text style={styles.analyticsRetentionItemValue}>78.5%</Text>
+            </View>
+            <View style={styles.analyticsRetentionItem}>
+              <Text style={styles.analyticsRetentionItemLabel}>Tiempo promedio entre visitas</Text>
+              <Text style={styles.analyticsRetentionItemValue}>4.2 meses</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+
+    const renderStaffAnalytics = () => (
+      <View>
+        {/* Staff Performance */}
+        <View style={styles.analyticsStaffCard}>
+          <Text style={styles.analyticsStaffTitle}>Rendimiento del Personal</Text>
+          {staffPerformance.map((staff, index) => (
+            <View key={staff.id} style={styles.analyticsStaffItem}>
+              <View style={styles.analyticsStaffInfo}>
+                <View style={styles.analyticsStaffAvatar}>
+                  <Text style={styles.analyticsStaffInitials}>
+                    {staff.name.split(' ').map(n => n[0]).join('')}
+                  </Text>
+                </View>
+                <View style={styles.analyticsStaffDetails}>
+                  <Text style={styles.analyticsStaffName}>{staff.name}</Text>
+                  <Text style={styles.analyticsStaffSpecialty}>{staff.specialties[0]}</Text>
+                </View>
+              </View>
+              <View style={styles.analyticsStaffMetrics}>
+                <View style={styles.analyticsStaffMetric}>
+                  <Calendar color="#2563eb" size={14} />
+                  <Text style={styles.analyticsStaffMetricValue}>{staff.appointments}</Text>
+                  <Text style={styles.analyticsStaffMetricLabel}>Citas</Text>
+                </View>
+                <View style={styles.analyticsStaffMetric}>
+                  <DollarSign color="#059669" size={14} />
+                  <Text style={styles.analyticsStaffMetricValue}>${(staff.revenue / 1000).toFixed(1)}k</Text>
+                  <Text style={styles.analyticsStaffMetricLabel}>Ingresos</Text>
+                </View>
+                <View style={styles.analyticsStaffMetric}>
+                  <Star color="#ea580c" size={14} />
+                  <Text style={styles.analyticsStaffMetricValue}>{staff.rating}</Text>
+                  <Text style={styles.analyticsStaffMetricLabel}>Rating</Text>
+                </View>
+                <View style={styles.analyticsStaffMetric}>
+                  <Activity color="#7c3aed" size={14} />
+                  <Text style={styles.analyticsStaffMetricValue}>{staff.efficiency}%</Text>
+                  <Text style={styles.analyticsStaffMetricLabel}>Eficiencia</Text>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Staff Schedule Efficiency */}
+        <View style={styles.analyticsScheduleCard}>
+          <Text style={styles.analyticsScheduleTitle}>Eficiencia de Horarios</Text>
+          <View style={styles.analyticsScheduleGrid}>
+            {[
+              { day: "Lun", efficiency: 95, appointments: 12 },
+              { day: "Mar", efficiency: 88, appointments: 10 },
+              { day: "Mié", efficiency: 92, appointments: 11 },
+              { day: "Jue", efficiency: 85, appointments: 9 },
+              { day: "Vie", efficiency: 90, appointments: 10 },
+              { day: "Sáb", efficiency: 78, appointments: 7 }
+            ].map((day, index) => (
+              <View key={index} style={styles.analyticsScheduleDay}>
+                <Text style={styles.analyticsScheduleDayName}>{day.day}</Text>
+                <View style={styles.analyticsScheduleBar}>
+                  <View style={[styles.analyticsScheduleFill, { height: `${day.efficiency}%` }]} />
+                </View>
+                <Text style={styles.analyticsScheduleEfficiency}>{day.efficiency}%</Text>
+                <Text style={styles.analyticsScheduleAppointments}>{day.appointments} citas</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+
+    return (
+      <ScrollView style={styles.content}>
+        {/* Header */}
+        <View style={styles.analyticsHeader}>
+          <View style={styles.analyticsHeaderLeft}>
+            <BarChart3 color="#2563eb" size={24} />
+            <Text style={styles.sectionTitle}>Analíticas Avanzadas</Text>
+          </View>
+          <View style={styles.analyticsHeaderRight}>
+            <TouchableOpacity style={styles.analyticsExportButton}>
+              <Download color="#64748b" size={16} />
+              <Text style={styles.analyticsExportButtonText}>Exportar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.analyticsReportButton}>
+              <FileText color="#2563eb" size={16} />
+              <Text style={styles.analyticsReportButtonText}>Generar Reporte</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Time Range Selector */}
+        <View style={styles.analyticsTimeRangeContainer}>
+          <Text style={styles.analyticsTimeRangeLabel}>Período:</Text>
+          <View style={styles.analyticsTimeRangeButtons}>
+            {[
+              { key: "7d", label: "7 días" },
+              { key: "30d", label: "30 días" },
+              { key: "90d", label: "90 días" },
+              { key: "1y", label: "1 año" }
+            ].map((range) => (
+              <TouchableOpacity
+                key={range.key}
+                style={[
+                  styles.analyticsTimeRangeButton,
+                  analyticsTimeRange === range.key && styles.analyticsTimeRangeButtonActive
+                ]}
+                onPress={() => setAnalyticsTimeRange(range.key as any)}
+              >
+                <Text style={[
+                  styles.analyticsTimeRangeButtonText,
+                  analyticsTimeRange === range.key && styles.analyticsTimeRangeButtonTextActive
+                ]}>
+                  {range.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* View Selector */}
+        <View style={styles.analyticsViewSelector}>
+          {[
+            { key: "overview", label: "Resumen", icon: BarChart3 },
+            { key: "sales", label: "Ventas", icon: DollarSign },
+            { key: "products", label: "Productos", icon: Package },
+            { key: "customers", label: "Clientes", icon: Users },
+            { key: "staff", label: "Personal", icon: UserCheck }
+          ].map((view) => (
+            <TouchableOpacity
+              key={view.key}
+              style={[
+                styles.analyticsViewButton,
+                analyticsView === view.key && styles.analyticsViewButtonActive
+              ]}
+              onPress={() => setAnalyticsView(view.key as any)}
+            >
+              <view.icon 
+                color={analyticsView === view.key ? "#ffffff" : "#64748b"} 
+                size={16} 
+              />
+              <Text style={[
+                styles.analyticsViewButtonText,
+                analyticsView === view.key && styles.analyticsViewButtonTextActive
+              ]}>
+                {view.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Analytics Content */}
+        <View style={styles.analyticsContent}>
+          {analyticsView === "overview" && renderAnalyticsOverview()}
+          {analyticsView === "sales" && renderSalesAnalytics()}
+          {analyticsView === "products" && renderProductAnalytics()}
+          {analyticsView === "customers" && renderCustomerAnalytics()}
+          {analyticsView === "staff" && renderStaffAnalytics()}
+        </View>
+      </ScrollView>
+    );
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case "overview":
@@ -1075,13 +1607,7 @@ export default function AllyDashboard() {
       case "pos":
         return renderPOS();
       case "analytics":
-        return (
-          <View style={styles.comingSoon}>
-            <BarChart3 color="#64748b" size={48} />
-            <Text style={styles.comingSoonText}>Analíticas Avanzadas</Text>
-            <Text style={styles.comingSoonSubtext}>Próximamente disponible</Text>
-          </View>
-        );
+        return renderAnalytics();
       case "marketing":
         return (
           <View style={styles.comingSoon}>
@@ -2480,5 +3006,768 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: "#64748b",
+  },
+  // Analytics Styles
+  analyticsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  analyticsHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  analyticsHeaderRight: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  analyticsExportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  analyticsExportButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  analyticsReportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  analyticsReportButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#2563eb",
+  },
+  analyticsTimeRangeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 12,
+  },
+  analyticsTimeRangeLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  analyticsTimeRangeButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  analyticsTimeRangeButton: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  analyticsTimeRangeButtonActive: {
+    backgroundColor: "#2563eb",
+  },
+  analyticsTimeRangeButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  analyticsTimeRangeButtonTextActive: {
+    color: "#ffffff",
+  },
+  analyticsViewSelector: {
+    flexDirection: "row",
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    padding: 4,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  analyticsViewButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    gap: 6,
+  },
+  analyticsViewButtonActive: {
+    backgroundColor: "#2563eb",
+  },
+  analyticsViewButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  analyticsViewButtonTextActive: {
+    color: "#ffffff",
+  },
+  analyticsContent: {
+    flex: 1,
+  },
+  analyticsMetricsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+  analyticsMetricCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: (width - 64) / 2,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsMetricHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  analyticsGrowthBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  analyticsGrowthText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  analyticsMetricValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+  analyticsMetricLabel: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsChartCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsChartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  analyticsChartTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  analyticsChartLegend: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  analyticsLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  analyticsLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  analyticsLegendText: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsChartPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  analyticsChartPlaceholderText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748b",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  analyticsChartPlaceholderSubtext: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  analyticsQuickStats: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  analyticsQuickStatItem: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: (width - 84) / 2,
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  analyticsQuickStatValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  analyticsQuickStatLabel: {
+    fontSize: 10,
+    color: "#64748b",
+    textAlign: "center",
+  },
+  analyticsSalesGrid: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 20,
+  },
+  analyticsSalesCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsSalesCardTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 12,
+  },
+  analyticsPaymentMethods: {
+    gap: 8,
+  },
+  analyticsPaymentMethod: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  analyticsPaymentMethodInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  analyticsPaymentMethodName: {
+    fontSize: 12,
+    color: "#374151",
+  },
+  analyticsPaymentMethodValue: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  analyticsTimeSlots: {
+    gap: 8,
+  },
+  analyticsTimeSlot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  analyticsTimeSlotTime: {
+    fontSize: 11,
+    color: "#64748b",
+    minWidth: 80,
+  },
+  analyticsTimeSlotBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  analyticsTimeSlotFill: {
+    height: "100%",
+    backgroundColor: "#2563eb",
+  },
+  analyticsTimeSlotAmount: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#1e293b",
+    minWidth: 50,
+    textAlign: "right",
+  },
+  analyticsComparisonCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsComparisonTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsComparisonGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  analyticsComparisonItem: {
+    backgroundColor: "#f8fafc",
+    flex: 1,
+    minWidth: (width - 104) / 2,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  analyticsComparisonMonth: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#64748b",
+    marginBottom: 4,
+  },
+  analyticsComparisonRevenue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 6,
+  },
+  analyticsComparisonGrowth: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  analyticsComparisonGrowthText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  analyticsTopProductsCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsTopProductsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsTopProductItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    gap: 12,
+  },
+  analyticsTopProductRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  analyticsTopProductRankText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  analyticsTopProductInfo: {
+    flex: 1,
+  },
+  analyticsTopProductName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  analyticsTopProductStats: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsTopProductGrowth: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2,
+  },
+  analyticsTopProductGrowthText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  analyticsCategoriesCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsCategoriesTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsCategoriesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  analyticsCategoryItem: {
+    backgroundColor: "#f8fafc",
+    flex: 1,
+    minWidth: (width - 104) / 2,
+    padding: 12,
+    borderRadius: 8,
+  },
+  analyticsCategoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 6,
+  },
+  analyticsCategoryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  analyticsCategoryName: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  analyticsCategoryRevenue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  analyticsCategoryPercentage: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  analyticsCustomerOverview: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+  analyticsCustomerMetric: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: (width - 84) / 2,
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsCustomerMetricValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  analyticsCustomerMetricLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+  },
+  analyticsSegmentsCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsSegmentsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsSegmentsList: {
+    gap: 8,
+  },
+  analyticsSegmentItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  analyticsSegmentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 8,
+  },
+  analyticsSegmentDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  analyticsSegmentName: {
+    fontSize: 12,
+    color: "#374151",
+    flex: 1,
+  },
+  analyticsSegmentStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  analyticsSegmentCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  analyticsSegmentPercentage: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  analyticsRetentionCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsRetentionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsRetentionChart: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+    gap: 16,
+  },
+  analyticsRetentionStats: {
+    alignItems: "center",
+  },
+  analyticsRetentionValue: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+  analyticsRetentionLabel: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsRetentionBreakdown: {
+    gap: 8,
+  },
+  analyticsRetentionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  analyticsRetentionItemLabel: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsRetentionItemValue: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  analyticsStaffCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsStaffTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsStaffItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    gap: 12,
+  },
+  analyticsStaffInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  analyticsStaffAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  analyticsStaffInitials: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  analyticsStaffDetails: {
+    flex: 1,
+  },
+  analyticsStaffName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  analyticsStaffSpecialty: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  analyticsStaffMetrics: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  analyticsStaffMetric: {
+    alignItems: "center",
+    minWidth: 50,
+  },
+  analyticsStaffMetricValue: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginTop: 2,
+    marginBottom: 1,
+  },
+  analyticsStaffMetricLabel: {
+    fontSize: 9,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  analyticsScheduleCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  analyticsScheduleTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 16,
+  },
+  analyticsScheduleGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  analyticsScheduleDay: {
+    alignItems: "center",
+    flex: 1,
+  },
+  analyticsScheduleDayName: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#64748b",
+    marginBottom: 8,
+  },
+  analyticsScheduleBar: {
+    width: 20,
+    height: 80,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  analyticsScheduleFill: {
+    backgroundColor: "#2563eb",
+    borderRadius: 10,
+    minHeight: 4,
+  },
+  analyticsScheduleEfficiency: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  analyticsScheduleAppointments: {
+    fontSize: 9,
+    color: "#94a3b8",
   },
 });
