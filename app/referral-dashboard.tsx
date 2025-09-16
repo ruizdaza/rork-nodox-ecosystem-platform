@@ -122,10 +122,10 @@ export default function ReferralDashboard() {
     setTimeout(() => setCopySuccess(null), 2000);
   };
 
-  const handleShare = async () => {
+  const handleNativeShare = async () => {
     try {
       if (Platform.OS === 'web') {
-        // For web, try Web Share API first, fallback to clipboard
+        // For web, try Web Share API first, fallback to more options modal
         if (navigator.share) {
           await navigator.share({
             title: 'Únete a NodoX',
@@ -133,10 +133,8 @@ export default function ReferralDashboard() {
             url: referralLink,
           });
         } else {
-          // Fallback to clipboard for browsers without Web Share API
-          await handleCopyLink();
-          setShareMessage('Enlace copiado al portapapeles - ¡Compártelo donde quieras!');
-          setTimeout(() => setShareMessage(null), 3000);
+          // If Web Share API is not available, open more options modal
+          setShareModalVisible(true);
         }
       } else {
         // Use React Native Share for mobile
@@ -147,17 +145,9 @@ export default function ReferralDashboard() {
       }
     } catch (error: any) {
       console.error("Error sharing:", error);
-      // Only fallback to copying if it's not a user cancellation
+      // If sharing fails and it's not user cancellation, show more options
       if (error.message !== 'User cancelled' && !error.message.includes('AbortError')) {
-        try {
-          await handleCopyLink();
-          setShareMessage('Enlace copiado al portapapeles');
-          setTimeout(() => setShareMessage(null), 3000);
-        } catch (copyError) {
-          console.error("Error copying:", copyError);
-          setShareMessage('Error: No se pudo compartir el enlace');
-          setTimeout(() => setShareMessage(null), 3000);
-        }
+        setShareModalVisible(true);
       }
     }
   };
@@ -257,7 +247,7 @@ export default function ReferralDashboard() {
                 <Copy color="#64748b" size={16} />
                 <Text style={styles.shareButtonText}>Copiar enlace</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <TouchableOpacity style={styles.shareButton} onPress={handleNativeShare}>
                 <Share2 color="#64748b" size={16} />
                 <Text style={styles.shareButtonText}>Compartir</Text>
               </TouchableOpacity>
@@ -460,7 +450,7 @@ export default function ReferralDashboard() {
                     window.open(`https://wa.me/?text=${encodeURIComponent(`¡Únete a NodoX con mi código de referido ${referralCode} y obtén 500 NCOP gratis! ${referralLink}`)}`, '_blank');
                   } else {
                     // For mobile, this would need Linking.openURL
-                    handleShare(); // Fallback to native share
+                    handleNativeShare(); // Fallback to native share
                   }
                   setShareModalVisible(false);
                 }}
@@ -478,7 +468,7 @@ export default function ReferralDashboard() {
                     window.open(mailtoUrl);
                   } else {
                     // For mobile, this would need Linking.openURL
-                    handleShare(); // Fallback to native share
+                    handleNativeShare(); // Fallback to native share
                   }
                   setShareModalVisible(false);
                 }}
