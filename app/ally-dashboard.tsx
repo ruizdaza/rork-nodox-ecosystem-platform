@@ -37,6 +37,20 @@ import {
   Tag,
   Image,
   AlertCircle,
+  Minus,
+  X,
+  Calculator,
+  Receipt,
+  Printer,
+  Smartphone,
+  Banknote,
+  Wallet,
+  QrCode,
+  CheckCircle,
+  XCircle,
+  DollarSign,
+  Hash,
+  Percent,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import NodoXLogo from "@/components/NodoXLogo";
@@ -70,6 +84,16 @@ export default function AllyDashboard() {
   const [productFilter, setProductFilter] = useState<"all" | "products" | "services" | "active" | "inactive">("all");
   const [showAddProductModal, setShowAddProductModal] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  
+  // POS State
+  const [posCart, setPosCart] = useState<Array<{id: string, name: string, price: number, quantity: number, isService?: boolean}>>([]);
+  const [posCustomer, setPosCustomer] = useState<string>("");
+  const [posDiscount, setPosDiscount] = useState<number>(0);
+  const [posPaymentMethod, setPosPaymentMethod] = useState<"cash" | "card" | "ncop" | "transfer">("cash");
+  const [posShowPayment, setPosShowPayment] = useState<boolean>(false);
+  const [posAmountReceived, setPosAmountReceived] = useState<string>("");
+  const [posTransactionComplete, setPosTransactionComplete] = useState<boolean>(false);
+  const [posLastTransaction, setPosLastTransaction] = useState<any>(null);
 
   const menuItems = [
     { id: "overview", icon: BarChart3, title: "Resumen", color: "#2563eb" },
@@ -324,6 +348,395 @@ export default function AllyDashboard() {
       </View>
     </ScrollView>
   );
+
+  const renderPOS = () => {
+    const subtotal = posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const discountAmount = subtotal * (posDiscount / 100);
+    const total = subtotal - discountAmount;
+    const change = posAmountReceived ? parseFloat(posAmountReceived) - total : 0;
+
+    const addToCart = (product: any) => {
+      const existingItem = posCart.find(item => item.id === product.id);
+      if (existingItem) {
+        setPosCart(posCart.map(item => 
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        ));
+      } else {
+        setPosCart([...posCart, {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          isService: product.isService
+        }]);
+      }
+    };
+
+    const removeFromCart = (productId: string) => {
+      setPosCart(posCart.filter(item => item.id !== productId));
+    };
+
+    const updateQuantity = (productId: string, quantity: number) => {
+      if (quantity <= 0) {
+        removeFromCart(productId);
+        return;
+      }
+      setPosCart(posCart.map(item => 
+        item.id === productId 
+          ? { ...item, quantity }
+          : item
+      ));
+    };
+
+    const processPayment = () => {
+      const transaction = {
+        id: Date.now().toString(),
+        items: posCart,
+        customer: posCustomer,
+        subtotal,
+        discount: discountAmount,
+        total,
+        paymentMethod: posPaymentMethod,
+        amountReceived: parseFloat(posAmountReceived),
+        change,
+        timestamp: new Date().toISOString(),
+        receiptNumber: `REC-${Date.now()}`
+      };
+      
+      setPosLastTransaction(transaction);
+      setPosTransactionComplete(true);
+      
+      // Clear cart and reset form
+      setTimeout(() => {
+        setPosCart([]);
+        setPosCustomer("");
+        setPosDiscount(0);
+        setPosAmountReceived("");
+        setPosShowPayment(false);
+        setPosTransactionComplete(false);
+      }, 3000);
+    };
+
+    const clearCart = () => {
+      setPosCart([]);
+      setPosCustomer("");
+      setPosDiscount(0);
+      setPosAmountReceived("");
+      setPosShowPayment(false);
+    };
+
+    if (posTransactionComplete && posLastTransaction) {
+      return (
+        <View style={styles.posContainer}>
+          <View style={styles.posSuccessScreen}>
+            <CheckCircle color="#059669" size={64} />
+            <Text style={styles.posSuccessTitle}>¡Venta Completada!</Text>
+            <Text style={styles.posSuccessSubtitle}>Recibo #{posLastTransaction.receiptNumber}</Text>
+            
+            <View style={styles.posReceiptPreview}>
+              <Text style={styles.posReceiptTitle}>RECIBO DE VENTA</Text>
+              <Text style={styles.posReceiptBusiness}>Clínica Dental Sonrisa</Text>
+              <Text style={styles.posReceiptDate}>{new Date(posLastTransaction.timestamp).toLocaleString()}</Text>
+              
+              <View style={styles.posReceiptDivider} />
+              
+              {posLastTransaction.items.map((item: any) => (
+                <View key={item.id} style={styles.posReceiptItem}>
+                  <Text style={styles.posReceiptItemName}>{item.name}</Text>
+                  <Text style={styles.posReceiptItemDetails}>
+                    {item.quantity} x ${item.price.toLocaleString()} = ${(item.quantity * item.price).toLocaleString()}
+                  </Text>
+                </View>
+              ))}
+              
+              <View style={styles.posReceiptDivider} />
+              
+              <View style={styles.posReceiptTotals}>
+                <View style={styles.posReceiptTotalRow}>
+                  <Text style={styles.posReceiptTotalLabel}>Subtotal:</Text>
+                  <Text style={styles.posReceiptTotalValue}>${posLastTransaction.subtotal.toLocaleString()}</Text>
+                </View>
+                {posLastTransaction.discount > 0 && (
+                  <View style={styles.posReceiptTotalRow}>
+                    <Text style={styles.posReceiptTotalLabel}>Descuento:</Text>
+                    <Text style={styles.posReceiptTotalValue}>-${posLastTransaction.discount.toLocaleString()}</Text>
+                  </View>
+                )}
+                <View style={[styles.posReceiptTotalRow, styles.posReceiptFinalTotal]}>
+                  <Text style={styles.posReceiptFinalTotalLabel}>TOTAL:</Text>
+                  <Text style={styles.posReceiptFinalTotalValue}>${posLastTransaction.total.toLocaleString()}</Text>
+                </View>
+                <View style={styles.posReceiptTotalRow}>
+                  <Text style={styles.posReceiptTotalLabel}>Recibido:</Text>
+                  <Text style={styles.posReceiptTotalValue}>${posLastTransaction.amountReceived.toLocaleString()}</Text>
+                </View>
+                <View style={styles.posReceiptTotalRow}>
+                  <Text style={styles.posReceiptTotalLabel}>Cambio:</Text>
+                  <Text style={styles.posReceiptTotalValue}>${posLastTransaction.change.toLocaleString()}</Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.posReceiptActions}>
+              <TouchableOpacity style={styles.posPrintButton}>
+                <Printer color="#ffffff" size={16} />
+                <Text style={styles.posPrintButtonText}>Imprimir Recibo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.posEmailButton}>
+                <Text style={styles.posEmailButtonText}>Enviar por Email</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.posContainer}>
+        <View style={styles.posLayout}>
+          {/* Products Section */}
+          <View style={styles.posProductsSection}>
+            <View style={styles.posHeader}>
+              <Text style={styles.posSectionTitle}>Productos y Servicios</Text>
+              <View style={styles.posSearchContainer}>
+                <Search color="#64748b" size={16} />
+                <Text style={styles.posSearchInput}>Buscar productos...</Text>
+              </View>
+            </View>
+            
+            <ScrollView style={styles.posProductsList}>
+              <View style={styles.posProductsGrid}>
+                {products.filter(p => p.isActive).map((product) => (
+                  <TouchableOpacity 
+                    key={product.id} 
+                    style={styles.posProductCard}
+                    onPress={() => addToCart(product)}
+                  >
+                    <View style={styles.posProductImage}>
+                      {product.isService ? (
+                        <Stethoscope color="#7c3aed" size={24} />
+                      ) : (
+                        <Package color="#2563eb" size={24} />
+                      )}
+                    </View>
+                    <Text style={styles.posProductName} numberOfLines={2}>{product.name}</Text>
+                    <Text style={styles.posProductPrice}>${product.price.toLocaleString()}</Text>
+                    {product.ncopPrice && (
+                      <Text style={styles.posProductNcop}>{product.ncopPrice} NCOP</Text>
+                    )}
+                    {!product.isService && (
+                      <Text style={styles.posProductStock}>Stock: {product.stock}</Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+          
+          {/* Cart Section */}
+          <View style={styles.posCartSection}>
+            <View style={styles.posCartHeader}>
+              <Text style={styles.posSectionTitle}>Carrito de Compras</Text>
+              {posCart.length > 0 && (
+                <TouchableOpacity onPress={clearCart} style={styles.posClearButton}>
+                  <X color="#dc2626" size={16} />
+                  <Text style={styles.posClearButtonText}>Limpiar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Customer Info */}
+            <View style={styles.posCustomerSection}>
+              <Text style={styles.posCustomerLabel}>Cliente (opcional):</Text>
+              <View style={styles.posCustomerInput}>
+                <Text 
+                  style={styles.posCustomerInputText}
+                  onPress={() => console.log('Customer input would be implemented')}
+                >
+                  {posCustomer || "Ingrese nombre del cliente..."}
+                </Text>
+              </View>
+            </View>
+            
+            {/* Cart Items */}
+            <ScrollView style={styles.posCartItems}>
+              {posCart.length === 0 ? (
+                <View style={styles.posEmptyCart}>
+                  <ShoppingCart color="#94a3b8" size={48} />
+                  <Text style={styles.posEmptyCartText}>Carrito vacío</Text>
+                  <Text style={styles.posEmptyCartSubtext}>Selecciona productos para agregar</Text>
+                </View>
+              ) : (
+                posCart.map((item) => (
+                  <View key={item.id} style={styles.posCartItem}>
+                    <View style={styles.posCartItemInfo}>
+                      <Text style={styles.posCartItemName}>{item.name}</Text>
+                      <Text style={styles.posCartItemPrice}>${item.price.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.posCartItemControls}>
+                      <TouchableOpacity 
+                        style={styles.posQuantityButton}
+                        onPress={() => updateQuantity(item.id, item.quantity - 1)}
+                      >
+                        <Minus color="#64748b" size={16} />
+                      </TouchableOpacity>
+                      <Text style={styles.posQuantityText}>{item.quantity}</Text>
+                      <TouchableOpacity 
+                        style={styles.posQuantityButton}
+                        onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                      >
+                        <Plus color="#64748b" size={16} />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.posRemoveButton}
+                        onPress={() => removeFromCart(item.id)}
+                      >
+                        <Trash2 color="#dc2626" size={16} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.posCartItemTotal}>
+                      ${(item.price * item.quantity).toLocaleString()}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+            
+            {/* Discount Section */}
+            {posCart.length > 0 && (
+              <View style={styles.posDiscountSection}>
+                <Text style={styles.posDiscountLabel}>Descuento (%):</Text>
+                <View style={styles.posDiscountControls}>
+                  <TouchableOpacity 
+                    style={styles.posDiscountButton}
+                    onPress={() => setPosDiscount(Math.max(0, posDiscount - 5))}
+                  >
+                    <Minus color="#64748b" size={16} />
+                  </TouchableOpacity>
+                  <Text style={styles.posDiscountValue}>{posDiscount}%</Text>
+                  <TouchableOpacity 
+                    style={styles.posDiscountButton}
+                    onPress={() => setPosDiscount(Math.min(100, posDiscount + 5))}
+                  >
+                    <Plus color="#64748b" size={16} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            
+            {/* Totals */}
+            {posCart.length > 0 && (
+              <View style={styles.posTotalsSection}>
+                <View style={styles.posTotalRow}>
+                  <Text style={styles.posTotalLabel}>Subtotal:</Text>
+                  <Text style={styles.posTotalValue}>${subtotal.toLocaleString()}</Text>
+                </View>
+                {posDiscount > 0 && (
+                  <View style={styles.posTotalRow}>
+                    <Text style={styles.posTotalLabel}>Descuento ({posDiscount}%):</Text>
+                    <Text style={styles.posTotalValue}>-${discountAmount.toLocaleString()}</Text>
+                  </View>
+                )}
+                <View style={[styles.posTotalRow, styles.posFinalTotal]}>
+                  <Text style={styles.posFinalTotalLabel}>TOTAL:</Text>
+                  <Text style={styles.posFinalTotalValue}>${total.toLocaleString()}</Text>
+                </View>
+              </View>
+            )}
+            
+            {/* Payment Section */}
+            {posCart.length > 0 && !posShowPayment && (
+              <TouchableOpacity 
+                style={styles.posCheckoutButton}
+                onPress={() => setPosShowPayment(true)}
+              >
+                <CreditCard color="#ffffff" size={20} />
+                <Text style={styles.posCheckoutButtonText}>Procesar Pago</Text>
+              </TouchableOpacity>
+            )}
+            
+            {posShowPayment && (
+              <View style={styles.posPaymentSection}>
+                <Text style={styles.posPaymentTitle}>Método de Pago</Text>
+                
+                <View style={styles.posPaymentMethods}>
+                  {[
+                    { id: "cash", icon: Banknote, label: "Efectivo", color: "#059669" },
+                    { id: "card", icon: CreditCard, label: "Tarjeta", color: "#2563eb" },
+                    { id: "ncop", icon: DollarSign, label: "NCOP", color: "#7c3aed" },
+                    { id: "transfer", icon: Smartphone, label: "Transferencia", color: "#ea580c" },
+                  ].map((method) => (
+                    <TouchableOpacity
+                      key={method.id}
+                      style={[
+                        styles.posPaymentMethod,
+                        posPaymentMethod === method.id && styles.posPaymentMethodActive
+                      ]}
+                      onPress={() => setPosPaymentMethod(method.id as any)}
+                    >
+                      <method.icon 
+                        color={posPaymentMethod === method.id ? "#ffffff" : method.color} 
+                        size={20} 
+                      />
+                      <Text style={[
+                        styles.posPaymentMethodText,
+                        posPaymentMethod === method.id && styles.posPaymentMethodTextActive
+                      ]}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                {posPaymentMethod === "cash" && (
+                  <View style={styles.posCashSection}>
+                    <Text style={styles.posCashLabel}>Monto Recibido:</Text>
+                    <View style={styles.posCashInput}>
+                      <DollarSign color="#64748b" size={16} />
+                      <Text 
+                        style={styles.posCashInputText}
+                        onPress={() => console.log('Amount input would be implemented')}
+                      >
+                        {posAmountReceived || "0.00"}
+                      </Text>
+                    </View>
+                    {posAmountReceived && parseFloat(posAmountReceived) >= total && (
+                      <View style={styles.posChangeSection}>
+                        <Text style={styles.posChangeLabel}>Cambio:</Text>
+                        <Text style={styles.posChangeValue}>${change.toLocaleString()}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+                
+                <View style={styles.posPaymentActions}>
+                  <TouchableOpacity 
+                    style={styles.posCancelPaymentButton}
+                    onPress={() => setPosShowPayment(false)}
+                  >
+                    <Text style={styles.posCancelPaymentButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      styles.posConfirmPaymentButton,
+                      (posPaymentMethod === "cash" && (!posAmountReceived || parseFloat(posAmountReceived) < total)) && styles.posConfirmPaymentButtonDisabled
+                    ]}
+                    onPress={processPayment}
+                    disabled={posPaymentMethod === "cash" && (!posAmountReceived || parseFloat(posAmountReceived) < total)}
+                  >
+                    <CheckCircle color="#ffffff" size={16} />
+                    <Text style={styles.posConfirmPaymentButtonText}>Confirmar Pago</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   const renderProducts = () => {
     const filteredProducts = products.filter(product => {
@@ -660,13 +1073,7 @@ export default function AllyDashboard() {
       case "products":
         return renderProducts();
       case "pos":
-        return (
-          <View style={styles.comingSoon}>
-            <CreditCard color="#64748b" size={48} />
-            <Text style={styles.comingSoonText}>Terminal POS</Text>
-            <Text style={styles.comingSoonSubtext}>Próximamente disponible</Text>
-          </View>
-        );
+        return renderPOS();
       case "analytics":
         return (
           <View style={styles.comingSoon}>
@@ -1484,5 +1891,594 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  // POS Styles
+  posContainer: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+  posLayout: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 20,
+    padding: 20,
+  },
+  posProductsSection: {
+    flex: 2,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  posCartSection: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  posHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  posSectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  posSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 8,
+    minWidth: 200,
+  },
+  posSearchInput: {
+    fontSize: 14,
+    color: "#64748b",
+  },
+  posProductsList: {
+    flex: 1,
+  },
+  posProductsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  posProductCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 12,
+    alignItems: "center",
+    minWidth: 120,
+    maxWidth: 140,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  posProductImage: {
+    width: 48,
+    height: 48,
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  posProductName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1e293b",
+    textAlign: "center",
+    marginBottom: 4,
+    minHeight: 32,
+  },
+  posProductPrice: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#059669",
+    marginBottom: 2,
+  },
+  posProductNcop: {
+    fontSize: 10,
+    color: "#2563eb",
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  posProductStock: {
+    fontSize: 10,
+    color: "#64748b",
+  },
+  posCartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  posClearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  posClearButtonText: {
+    fontSize: 12,
+    color: "#dc2626",
+    fontWeight: "500",
+  },
+  posCustomerSection: {
+    marginBottom: 16,
+  },
+  posCustomerLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  posCustomerInput: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  posCustomerInputText: {
+    fontSize: 14,
+    color: "#64748b",
+  },
+  posCartItems: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  posEmptyCart: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  posEmptyCartText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748b",
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  posEmptyCartSubtext: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  posCartItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 8,
+  },
+  posCartItemInfo: {
+    flex: 1,
+  },
+  posCartItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  posCartItemPrice: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  posCartItemControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  posQuantityButton: {
+    backgroundColor: "#ffffff",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  posQuantityText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    minWidth: 20,
+    textAlign: "center",
+  },
+  posRemoveButton: {
+    backgroundColor: "#fef2f2",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 4,
+  },
+  posCartItemTotal: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#059669",
+    minWidth: 60,
+    textAlign: "right",
+  },
+  posDiscountSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fef3c7",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  posDiscountLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#92400e",
+  },
+  posDiscountControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  posDiscountButton: {
+    backgroundColor: "#ffffff",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+  },
+  posDiscountValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#92400e",
+    minWidth: 40,
+    textAlign: "center",
+  },
+  posTotalsSection: {
+    backgroundColor: "#f1f5f9",
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  posTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  posTotalLabel: {
+    fontSize: 14,
+    color: "#64748b",
+  },
+  posTotalValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e293b",
+  },
+  posFinalTotal: {
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    paddingTop: 8,
+    marginTop: 4,
+    marginBottom: 0,
+  },
+  posFinalTotalLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  posFinalTotalValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#059669",
+  },
+  posCheckoutButton: {
+    backgroundColor: "#2563eb",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  posCheckoutButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  posPaymentSection: {
+    backgroundColor: "#f8fafc",
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  posPaymentTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginBottom: 12,
+  },
+  posPaymentMethods: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  posPaymentMethod: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 6,
+    minWidth: 100,
+  },
+  posPaymentMethodActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  posPaymentMethodText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  posPaymentMethodTextActive: {
+    color: "#ffffff",
+  },
+  posCashSection: {
+    marginBottom: 16,
+  },
+  posCashLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  posCashInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 8,
+  },
+  posCashInputText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    flex: 1,
+  },
+  posChangeSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#dcfce7",
+    padding: 12,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  posChangeLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#166534",
+  },
+  posChangeValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#059669",
+  },
+  posPaymentActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  posCancelPaymentButton: {
+    flex: 1,
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  posCancelPaymentButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  posConfirmPaymentButton: {
+    flex: 2,
+    backgroundColor: "#059669",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 6,
+    gap: 6,
+  },
+  posConfirmPaymentButtonDisabled: {
+    backgroundColor: "#94a3b8",
+  },
+  posConfirmPaymentButtonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  // Success Screen Styles
+  posSuccessScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+    backgroundColor: "#ffffff",
+    margin: 20,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  posSuccessTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#059669",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  posSuccessSubtitle: {
+    fontSize: 16,
+    color: "#64748b",
+    marginBottom: 24,
+  },
+  posReceiptPreview: {
+    backgroundColor: "#f8fafc",
+    padding: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    width: "100%",
+    maxWidth: 300,
+    marginBottom: 24,
+  },
+  posReceiptTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1e293b",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  posReceiptBusiness: {
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  posReceiptDate: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  posReceiptDivider: {
+    height: 1,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 12,
+  },
+  posReceiptItem: {
+    marginBottom: 8,
+  },
+  posReceiptItemName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  posReceiptItemDetails: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  posReceiptTotals: {
+    marginTop: 8,
+  },
+  posReceiptTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  posReceiptTotalLabel: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  posReceiptTotalValue: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#1e293b",
+  },
+  posReceiptFinalTotal: {
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    paddingTop: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  posReceiptFinalTotalLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  posReceiptFinalTotalValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#059669",
+  },
+  posReceiptActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+    maxWidth: 300,
+  },
+  posPrintButton: {
+    flex: 1,
+    backgroundColor: "#2563eb",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  posPrintButtonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  posEmailButton: {
+    flex: 1,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  posEmailButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#64748b",
   },
 });
