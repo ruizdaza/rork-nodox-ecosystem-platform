@@ -10,10 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { ArrowLeft, Send, Paperclip, Mic, MoreVertical, Phone, Video } from 'lucide-react-native';
+import { ArrowLeft, Send, Paperclip, Mic, Play, Pause, MoreVertical, Phone, Video } from 'lucide-react-native';
+import { Audio } from 'expo-av';
 import { useChat } from '@/hooks/use-chat';
 import { Message } from '@/types/chat';
 import NodoXLogo from '@/components/NodoXLogo';
@@ -26,7 +28,109 @@ const formatMessageTime = (date: Date): string => {
   });
 };
 
+const AudioMessage = ({ message, isOwn }: { message: Message; isOwn: boolean }) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [duration, setDuration] = useState<number>(0);
+  const [position, setPosition] = useState<number>(0);
+
+  useEffect(() => {
+    return sound
+      ? () => {
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
+
+  const playPauseAudio = async () => {
+    try {
+      if (sound) {
+        if (isPlaying) {
+          await sound.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await sound.playAsync();
+          setIsPlaying(true);
+        }
+      } else {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: message.content },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded) {
+              setDuration(status.durationMillis || 0);
+              setPosition(status.positionMillis || 0);
+              setIsPlaying(status.isPlaying);
+              if (status.didJustFinish) {
+                setIsPlaying(false);
+                setPosition(0);
+              }
+            }
+          }
+        );
+        setSound(newSound);
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', 'No se pudo reproducir el audio');
+      }
+    }
+  };
+
+  const formatDuration = (millis: number) => {
+    const seconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <View style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}>
+      <View style={[styles.messageBubble, styles.audioBubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
+        <TouchableOpacity onPress={playPauseAudio} style={styles.audioPlayButton}>
+          {isPlaying ? (
+            <Pause size={20} color={isOwn ? '#ffffff' : '#2563eb'} />
+          ) : (
+            <Play size={20} color={isOwn ? '#ffffff' : '#2563eb'} />
+          )}
+        </TouchableOpacity>
+        
+        <View style={styles.audioInfo}>
+          <View style={[styles.audioWaveform, isOwn ? styles.ownWaveform : styles.otherWaveform]}>
+            {[...Array(20)].map((_, i) => (
+              <View
+                key={`waveform-${i}`}
+                style={[
+                  styles.waveformBar,
+                  {
+                    height: Math.random() * 20 + 8,
+                    backgroundColor: isOwn ? 'rgba(255,255,255,0.7)' : 'rgba(37,99,235,0.7)',
+                    opacity: (position / duration) > (i / 20) ? 1 : 0.3,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <Text style={[styles.audioDuration, isOwn ? styles.ownTime : styles.otherTime]}>
+            {formatDuration(position)} / {formatDuration(duration)}
+          </Text>
+        </View>
+        
+        <Text style={[styles.messageTime, isOwn ? styles.ownTime : styles.otherTime]}>
+          {formatMessageTime(message.timestamp)}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
 const MessageBubble = ({ message, isOwn }: { message: Message; isOwn: boolean }) => {
+  if (message.type === 'audio') {
+    return <AudioMessage message={message} isOwn={isOwn} />;
+  }
+
   return (
     <View style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}>
       <View style={[styles.messageBubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
@@ -54,9 +158,13 @@ export default function ConversationScreen() {
   } = useChat();
   
   const [inputText, setInputText] = useState<string>('');
-  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [, setIsTyping] = useState<boolean>(false);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const flatListRef = useRef<FlatList>(null);
   const inputHeight = useRef(new Animated.Value(40)).current;
+  const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const currentChat = chats.find(chat => chat.id === activeChat);
   const messages = activeChat ? getChatMessages(activeChat) : [];
@@ -72,10 +180,22 @@ export default function ConversationScreen() {
   }, [activeChat, markAsRead]);
 
   useEffect(() => {
+    return () => {
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+      }
+      if (recording) {
+        recording.stopAndUnloadAsync();
+      }
+    };
+  }, [recording]);
+
+  useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
+      return () => clearTimeout(timeout);
     }
   }, [messages.length]);
 
@@ -96,6 +216,7 @@ export default function ConversationScreen() {
   };
 
   const handleInputChange = (text: string) => {
+    if (!text || text.length > 1000) return;
     setInputText(text);
     setIsTyping(text.length > 0);
     
@@ -107,6 +228,94 @@ export default function ConversationScreen() {
       duration: 200,
       useNativeDriver: false,
     }).start();
+  };
+
+  const startRecording = async () => {
+    if (Platform.OS === 'web') {
+      console.log('Audio recording not supported on web');
+      return;
+    }
+
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permisos requeridos', 'Necesitamos acceso al micrófono para grabar mensajes de voz.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      setRecording(newRecording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      recordingTimer.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000) as ReturnType<typeof setInterval>;
+
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      Alert.alert('Error', 'No se pudo iniciar la grabación');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording || Platform.OS === 'web') return;
+
+    try {
+      setIsRecording(false);
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+        recordingTimer.current = null;
+      }
+
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      
+      const uri = recording.getURI();
+      setRecording(null);
+      setRecordingDuration(0);
+
+      if (uri && activeChat) {
+        await sendMessage(activeChat, uri, 'audio');
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      Alert.alert('Error', 'No se pudo detener la grabación');
+    }
+  };
+
+  const cancelRecording = async () => {
+    if (!recording || Platform.OS === 'web') return;
+
+    try {
+      setIsRecording(false);
+      if (recordingTimer.current) {
+        clearInterval(recordingTimer.current);
+        recordingTimer.current = null;
+      }
+
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      
+      setRecording(null);
+      setRecordingDuration(0);
+    } catch (error) {
+      console.error('Error canceling recording:', error);
+    }
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (!activeChat || !currentChat) {
@@ -203,33 +412,64 @@ export default function ConversationScreen() {
         />
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Paperclip size={22} color="#64748b" />
-          </TouchableOpacity>
-          
-          <Animated.View style={[styles.textInputContainer, { height: inputHeight }]}>
-            <TextInput
-              style={styles.textInput}
-              value={inputText}
-              onChangeText={handleInputChange}
-              placeholder="Escribe un mensaje..."
-              placeholderTextColor="#94a3b8"
-              multiline
-              maxLength={1000}
-            />
-          </Animated.View>
-
-          {inputText.trim() ? (
-            <TouchableOpacity 
-              style={styles.sendButton}
-              onPress={handleSend}
-            >
-              <Send size={18} color="#ffffff" />
-            </TouchableOpacity>
+          {isRecording ? (
+            <View style={styles.recordingContainer}>
+              <TouchableOpacity 
+                style={styles.cancelRecordingButton}
+                onPress={cancelRecording}
+              >
+                <Text style={styles.cancelRecordingText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.recordingInfo}>
+                <View style={styles.recordingIndicator} />
+                <Text style={styles.recordingTime}>
+                  {formatRecordingTime(recordingDuration)}
+                </Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.stopRecordingButton}
+                onPress={stopRecording}
+              >
+                <Send size={18} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
           ) : (
-            <TouchableOpacity style={styles.micButton}>
-              <Mic size={22} color="#64748b" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={styles.attachButton}>
+                <Paperclip size={22} color="#64748b" />
+              </TouchableOpacity>
+              
+              <Animated.View style={[styles.textInputContainer, { height: inputHeight }]}>
+                <TextInput
+                  style={styles.textInput}
+                  value={inputText}
+                  onChangeText={handleInputChange}
+                  placeholder="Escribe un mensaje..."
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  maxLength={1000}
+                />
+              </Animated.View>
+
+              {inputText.trim() ? (
+                <TouchableOpacity 
+                  style={styles.sendButton}
+                  onPress={handleSend}
+                >
+                  <Send size={18} color="#ffffff" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={[styles.micButton, Platform.OS === 'web' && styles.disabledButton]}
+                  onPress={Platform.OS === 'web' ? undefined : startRecording}
+                  disabled={Platform.OS === 'web'}
+                >
+                  <Mic size={22} color={Platform.OS === 'web' ? '#cbd5e1' : '#64748b'} />
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </KeyboardAvoidingView>
@@ -419,5 +659,94 @@ const styles = StyleSheet.create({
   },
   micButton: {
     marginBottom: 10,
+  },
+  audioBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 200,
+  },
+  audioPlayButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  audioInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  audioWaveform: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 24,
+    marginBottom: 4,
+    gap: 2,
+  },
+  ownWaveform: {
+    opacity: 0.8,
+  },
+  otherWaveform: {
+    opacity: 0.8,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: 1.5,
+    minHeight: 8,
+  },
+  audioDuration: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  recordingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fee2e2',
+    borderRadius: 25,
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  cancelRecordingButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelRecordingText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  recordingInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  recordingIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#dc2626',
+  },
+  recordingTime: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#dc2626',
+  },
+  stopRecordingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

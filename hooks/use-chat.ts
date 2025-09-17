@@ -134,6 +134,15 @@ const mockMessages: Record<string, Message[]> = {
       isRead: true,
     },
     {
+      id: 'msg-1-4',
+      chatId: 'chat-1',
+      senderId: 'current-user',
+      content: 'https://www2.cs.uic.edu/~i101/SoundFiles/BabyElephantWalk60.wav',
+      type: 'audio',
+      timestamp: new Date(Date.now() - 1000 * 60 * 10),
+      isRead: true,
+    },
+    {
       id: 'msg-1-3',
       chatId: 'chat-1',
       senderId: 'user-1',

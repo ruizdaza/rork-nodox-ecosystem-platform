@@ -18,7 +18,10 @@
       "bundleIdentifier": "app.rork.nodox-ecosystem-platform",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -62,6 +65,12 @@
             "./local/assets/notification_sound.wav"
           ],
           "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
         }
       ]
     ],
