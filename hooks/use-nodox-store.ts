@@ -12,7 +12,13 @@ interface User {
   joinDate: string;
   roles: UserRole[];
   isAlly: boolean;
+  allyStatus?: AllyStatus;
+  allyRequestDate?: string;
+  allyApprovalDate?: string;
+  allyTempAccessExpiry?: string;
 }
+
+type AllyStatus = "none" | "pending" | "temp_approved" | "approved" | "rejected";
 
 type UserRole = "user" | "ally" | "referrer" | "admin";
 
@@ -95,6 +101,24 @@ interface Campaign {
   endDate: string;
 }
 
+interface AllyRequest {
+  id: string;
+  userId: string;
+  businessName: string;
+  businessType: string;
+  businessDescription: string;
+  businessAddress: string;
+  businessPhone: string;
+  businessEmail: string;
+  taxId: string;
+  legalRepresentative: string;
+  requestDate: string;
+  status: AllyStatus;
+  reviewedBy?: string;
+  reviewDate?: string;
+  rejectionReason?: string;
+}
+
 interface Activity {
   id: string;
   title: string;
@@ -131,8 +155,9 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
     membershipType: "premium",
     joinDate: "2024-01-15",
-    roles: ["user", "ally", "referrer"],
-    isAlly: true,
+    roles: ["user", "admin"],
+    isAlly: false,
+    allyStatus: "none",
   });
 
   const [currentView, setCurrentView] = useState<"user" | "ally">("user");
@@ -264,6 +289,8 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
       endDate: "",
     },
   ]);
+
+  const [allyRequests, setAllyRequests] = useState<AllyRequest[]>([]);
 
   const [ncopBalance, setNcopBalance] = useState<number>(2450);
   const [copBalance, setCopBalance] = useState<number>(150000);
@@ -561,6 +588,119 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     // In a real app, you'd merge these settings with the user object
   };
 
+  const submitAllyRequest = async (requestData: Omit<AllyRequest, "id" | "userId" | "requestDate" | "status">): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const newRequest: AllyRequest = {
+          ...requestData,
+          id: Date.now().toString(),
+          userId: user.id,
+          requestDate: new Date().toISOString(),
+          status: "pending",
+        };
+        
+        setAllyRequests(prev => [...prev, newRequest]);
+        
+        // Update user status to pending
+        setUser(prev => ({
+          ...prev,
+          allyStatus: "pending",
+          allyRequestDate: new Date().toISOString(),
+        }));
+        
+        console.log('Ally request submitted:', newRequest);
+        resolve(true);
+      }, 1500);
+    });
+  };
+
+  const approveAllyRequest = (requestId: string, tempAccess: boolean = true) => {
+    const request = allyRequests.find(r => r.id === requestId);
+    if (!request) return false;
+
+    const now = new Date();
+    const tempExpiry = new Date(now.getTime() + (48 * 60 * 60 * 1000)); // 48 hours
+    
+    setAllyRequests(prev => prev.map(r => 
+      r.id === requestId 
+        ? { ...r, status: tempAccess ? "temp_approved" : "approved", reviewDate: now.toISOString() }
+        : r
+    ));
+
+    if (request.userId === user.id) {
+      setUser(prev => ({
+        ...prev,
+        allyStatus: tempAccess ? "temp_approved" : "approved",
+        allyApprovalDate: now.toISOString(),
+        allyTempAccessExpiry: tempAccess ? tempExpiry.toISOString() : undefined,
+        roles: tempAccess || prev.roles.includes("ally") ? prev.roles : [...prev.roles, "ally"],
+        isAlly: true,
+      }));
+    }
+
+    console.log(`Ally request ${tempAccess ? 'temporarily' : 'permanently'} approved:`, requestId);
+    return true;
+  };
+
+  const rejectAllyRequest = (requestId: string, reason: string) => {
+    const request = allyRequests.find(r => r.id === requestId);
+    if (!request) return false;
+
+    setAllyRequests(prev => prev.map(r => 
+      r.id === requestId 
+        ? { ...r, status: "rejected", reviewDate: new Date().toISOString(), rejectionReason: reason }
+        : r
+    ));
+
+    if (request.userId === user.id) {
+      setUser(prev => ({
+        ...prev,
+        allyStatus: "rejected",
+      }));
+    }
+
+    console.log('Ally request rejected:', requestId, reason);
+    return true;
+  };
+
+  const checkTempAccessExpiry = () => {
+    if (user.allyStatus === "temp_approved" && user.allyTempAccessExpiry) {
+      const now = new Date();
+      const expiry = new Date(user.allyTempAccessExpiry);
+      
+      if (now > expiry) {
+        setUser(prev => ({
+          ...prev,
+          allyStatus: "pending",
+          allyTempAccessExpiry: undefined,
+          roles: prev.roles.filter(role => role !== "ally"),
+          isAlly: false,
+        }));
+        console.log('Temporary ally access expired');
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getTempAccessTimeRemaining = (): number => {
+    if (user.allyStatus === "temp_approved" && user.allyTempAccessExpiry) {
+      const now = new Date();
+      const expiry = new Date(user.allyTempAccessExpiry);
+      return Math.max(0, expiry.getTime() - now.getTime());
+    }
+    return 0;
+  };
+
+  // Check temp access expiry on load
+  useEffect(() => {
+    checkTempAccessExpiry();
+    
+    // Set up interval to check expiry every minute
+    const interval = setInterval(checkTempAccessExpiry, 60000);
+    return () => clearInterval(interval);
+  }, [user.allyStatus, user.allyTempAccessExpiry]);
+
   return {
     user,
     ncopBalance,
@@ -584,6 +724,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     appointments,
     allyMetrics,
     campaigns,
+    allyRequests,
     addProduct,
     updateProduct,
     deleteProduct,
@@ -595,5 +736,10 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     activateCampaign,
     generateAdCopy,
     updateUserSettings,
+    submitAllyRequest,
+    approveAllyRequest,
+    rejectAllyRequest,
+    checkTempAccessExpiry,
+    getTempAccessTimeRemaining,
   };
 });

@@ -21,7 +21,12 @@ import {
   LogOut,
   Store,
   UserPlus,
-  Crown
+  Crown,
+  Building2,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Timer
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import { useRouter } from "expo-router";
@@ -30,6 +35,83 @@ import NodoXLogo from "@/components/NodoXLogo";
 export default function ProfileScreen() {
   const { user, ncopBalance } = useNodoX();
   const router = useRouter();
+
+  const getAllyStatusInfo = () => {
+    switch (user.allyStatus) {
+      case "pending":
+        return {
+          icon: <Clock color="#f59e0b" size={20} />,
+          title: "Solicitud en Revisión",
+          subtitle: "Tu solicitud está siendo evaluada",
+          colors: ["#fef3c7", "#fde68a"],
+          textColor: "#92400e",
+          action: () => router.push('/ally-status')
+        };
+      case "temp_approved":
+        return {
+          icon: <Timer color="#8b5cf6" size={20} />,
+          title: "Acceso Temporal Activo",
+          subtitle: "Panel de aliado disponible",
+          colors: ["#8b5cf6", "#a855f7"],
+          textColor: "#ffffff",
+          action: () => router.push('/ally-dashboard')
+        };
+      case "approved":
+        return {
+          icon: <CheckCircle color="#10b981" size={20} />,
+          title: "¡Aliado Aprobado!",
+          subtitle: "Acceso completo al panel",
+          colors: ["#10b981", "#059669"],
+          textColor: "#ffffff",
+          action: () => router.push('/ally-dashboard')
+        };
+      case "rejected":
+        return {
+          icon: <XCircle color="#ef4444" size={20} />,
+          title: "Solicitud Rechazada",
+          subtitle: "Puedes enviar una nueva solicitud",
+          colors: ["#fef2f2", "#fee2e2"],
+          textColor: "#dc2626",
+          action: () => router.push('/ally-request')
+        };
+      default:
+        return {
+          icon: <Building2 color="#8b5cf6" size={20} />,
+          title: "Conviértete en Aliado",
+          subtitle: "Haz crecer tu negocio con NodoX",
+          colors: ["#8b5cf6", "#a855f7"],
+          textColor: "#ffffff",
+          action: () => router.push('/ally-request')
+        };
+    }
+  };
+
+  const renderAllyStatusCard = () => {
+    const statusInfo = getAllyStatusInfo();
+    
+    return (
+      <TouchableOpacity 
+        style={styles.roleCard}
+        onPress={statusInfo.action}
+      >
+        <LinearGradient
+          colors={statusInfo.colors as [string, string]}
+          style={styles.roleGradient}
+        >
+          {statusInfo.icon}
+          <View style={styles.roleContent}>
+            <Text style={[styles.roleTitle, { color: statusInfo.textColor }]}>
+              {statusInfo.title}
+            </Text>
+            <Text style={[styles.roleSubtitle, { color: statusInfo.textColor === "#ffffff" ? "rgba(255, 255, 255, 0.8)" : statusInfo.textColor }]}>
+              {statusInfo.subtitle}
+            </Text>
+          </View>
+          <ChevronRight color={statusInfo.textColor} size={20} />
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
 
   const menuItems = [
     { 
@@ -104,6 +186,12 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Ally Status Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Estado de Aliado</Text>
+          {renderAllyStatusCard()}
+        </View>
+
         {/* Role Panels */}
         {user.roles.length > 1 && (
           <View style={styles.section}>
@@ -129,8 +217,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
             
-
-            
             {/* Panel Conecta */}
             {user.roles.includes("referrer") && (
               <TouchableOpacity 
@@ -153,7 +239,10 @@ export default function ProfileScreen() {
             
             {/* Panel de Admin */}
             {user.roles.includes("admin") && (
-              <TouchableOpacity style={styles.roleCard}>
+              <TouchableOpacity 
+                style={styles.roleCard}
+                onPress={() => router.push('/admin-ally-requests')}
+              >
                 <LinearGradient
                   colors={["#ef4444", "#dc2626"]}
                   style={styles.roleGradient}
@@ -161,7 +250,7 @@ export default function ProfileScreen() {
                   <Crown color="#ffffff" size={24} />
                   <View style={styles.roleContent}>
                     <Text style={styles.roleTitle}>Administración</Text>
-                    <Text style={styles.roleSubtitle}>Panel completo</Text>
+                    <Text style={styles.roleSubtitle}>Gestionar solicitudes</Text>
                   </View>
                   <ChevronRight color="#ffffff" size={20} />
                 </LinearGradient>

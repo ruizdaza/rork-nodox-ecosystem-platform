@@ -21,6 +21,9 @@ function RootLayoutNav() {
       <Stack.Screen name="scanner" options={{ headerShown: false, presentation: "fullScreenModal" }} />
       <Stack.Screen name="conversation" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notifications" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="ally-request" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="ally-status" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="admin-ally-requests" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
