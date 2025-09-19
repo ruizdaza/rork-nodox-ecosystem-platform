@@ -741,5 +741,6 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     rejectAllyRequest,
     checkTempAccessExpiry,
     getTempAccessTimeRemaining,
+    formatNcopBalance,
   };
 });
