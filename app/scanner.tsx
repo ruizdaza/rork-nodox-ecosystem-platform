@@ -6,20 +6,36 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { ArrowLeft, Flashlight, FlashlightOff } from 'lucide-react-native';
+import { ArrowLeft, Flashlight, FlashlightOff, CreditCard, Coins } from 'lucide-react-native';
 import { useNodoX } from '@/hooks/use-nodox-store';
+import { useMarketplace } from '@/hooks/use-marketplace';
 import NodoXLogo from '@/components/NodoXLogo';
 
+interface PaymentData {
+  type: 'nodox_payment';
+  storeId: string;
+  storeName: string;
+  amount: number;
+  currency: 'COP';
+  description?: string;
+}
+
 export default function ScannerScreen() {
-  const { ncopBalance, spendNcop } = useNodoX();
+  const { ncopBalance, copBalance } = useNodoX();
+  const { processPhysicalStorePayment } = useMarketplace();
   const [facing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [flashlight, setFlashlight] = useState<boolean>(false);
   const [scanned, setScanned] = useState<boolean>(false);
+  const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'ncop' | 'fiat'>('ncop');
+  const [processing, setProcessing] = useState<boolean>(false);
 
   if (!permission) {
     return (
@@ -58,41 +74,87 @@ export default function ScannerScreen() {
     console.log('QR Code scanned:', data);
     
     try {
-      const qrData = JSON.parse(data);
+      const qrData: PaymentData = JSON.parse(data);
       
-      if (qrData.type === 'payment' && qrData.amount) {
-        Alert.alert(
-          'Confirmar Pago',
-          `¿Deseas pagar $${qrData.amount.toLocaleString()} a ${qrData.merchantName || 'este comercio'}?`,
-          [
-            {
-              text: 'Cancelar',
-              style: 'cancel',
-              onPress: () => setScanned(false),
-            },
-            {
-              text: 'Pagar',
-              onPress: () => {
-                if (ncopBalance >= qrData.amount) {
-                  spendNcop(qrData.amount);
-                  Alert.alert('Éxito', 'Pago realizado correctamente');
-                  router.back();
-                } else {
-                  Alert.alert('Error', 'Saldo insuficiente');
-                  setScanned(false);
-                }
-              },
-            },
-          ]
+      if (qrData.type === 'nodox_payment' && qrData.storeId && qrData.amount) {
+        setPaymentData(qrData);
+        setShowPaymentModal(true);
+      } else {
+        showError('Código QR no válido', 'Este código QR no es compatible con NodoX.');
+      }
+    } catch (error) {
+      console.error('QR parsing error:', error);
+      showError('Error', 'No se pudo leer el código QR.');
+    }
+  };
+
+  const showError = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      console.error(`${title}: ${message}`);
+      setScanned(false);
+    } else {
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => setScanned(false) }]);
+    }
+  };
+
+  const showSuccess = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      console.log(`${title}: ${message}`);
+      router.back();
+    } else {
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => router.back() }]);
+    }
+  };
+
+  const processPayment = async () => {
+    if (!paymentData) return;
+    
+    setProcessing(true);
+    
+    try {
+      const result = await processPhysicalStorePayment(
+        paymentData.storeId,
+        paymentData.amount,
+        selectedPaymentMethod
+      );
+      
+      if (result.success) {
+        setShowPaymentModal(false);
+        const currency = selectedPaymentMethod === 'ncop' ? 'NCOP' : 'COP';
+        const displayAmount = selectedPaymentMethod === 'ncop' 
+          ? Math.ceil(paymentData.amount / 100)
+          : paymentData.amount;
+        
+        showSuccess(
+          'Pago Exitoso',
+          `Se procesó el pago de ${displayAmount} ${currency} en ${paymentData.storeName}`
         );
       } else {
-        Alert.alert('Código QR no válido', 'Este código QR no es válido para pagos');
-        setScanned(false);
+        showError('Error en el pago', result.error || 'No se pudo procesar el pago');
       }
-    } catch {
-      Alert.alert('Error', 'No se pudo procesar el código QR');
-      setScanned(false);
+    } catch (error) {
+      console.error('Payment processing error:', error);
+      showError('Error', 'Ocurrió un error inesperado. Intenta nuevamente.');
+    } finally {
+      setProcessing(false);
     }
+  };
+
+  const closeModal = () => {
+    setShowPaymentModal(false);
+    setPaymentData(null);
+    setScanned(false);
+  };
+
+  const canPayWithNCOP = () => {
+    if (!paymentData) return false;
+    const ncopAmount = Math.ceil(paymentData.amount / 100);
+    return ncopBalance >= ncopAmount;
+  };
+
+  const canPayWithCOP = () => {
+    if (!paymentData) return false;
+    return copBalance >= paymentData.amount;
   };
 
   const toggleFlashlight = () => {
@@ -135,11 +197,18 @@ export default function ScannerScreen() {
             </View>
             <View style={styles.instructionsContainer}>
               <Text style={styles.instructions}>
-                Apunta la cámara hacia el código QR
+                Apunta la cámara hacia el código QR del comercio
               </Text>
-              <Text style={styles.balanceInfo}>
-                Saldo disponible: {ncopBalance.toLocaleString()} NCOP
-              </Text>
+              <View style={styles.balanceContainer}>
+                <View style={styles.balanceItem}>
+                  <Text style={styles.balanceLabel}>NCOP:</Text>
+                  <Text style={styles.balanceValue}>{ncopBalance.toLocaleString()}</Text>
+                </View>
+                <View style={styles.balanceItem}>
+                  <Text style={styles.balanceLabel}>COP:</Text>
+                  <Text style={styles.balanceValue}>${copBalance.toLocaleString()}</Text>
+                </View>
+              </View>
             </View>
           </View>
         </CameraView>
@@ -154,6 +223,119 @@ export default function ScannerScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Payment Modal */}
+      <Modal
+        visible={showPaymentModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirmar Pago</Text>
+            
+            {paymentData && (
+              <>
+                <View style={styles.paymentInfo}>
+                  <Text style={styles.storeName}>{paymentData.storeName}</Text>
+                  <Text style={styles.paymentAmount}>
+                    ${paymentData.amount.toLocaleString()} COP
+                  </Text>
+                  {paymentData.description && (
+                    <Text style={styles.paymentDescription}>
+                      {paymentData.description}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.paymentMethods}>
+                  <Text style={styles.paymentMethodsTitle}>Método de pago:</Text>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.paymentMethodOption,
+                      selectedPaymentMethod === 'ncop' && styles.paymentMethodSelected,
+                      !canPayWithNCOP() && styles.paymentMethodDisabled
+                    ]}
+                    onPress={() => canPayWithNCOP() && setSelectedPaymentMethod('ncop')}
+                    disabled={!canPayWithNCOP()}
+                  >
+                    <Coins color={selectedPaymentMethod === 'ncop' ? '#ffffff' : '#2563eb'} size={20} />
+                    <View style={styles.paymentMethodText}>
+                      <Text style={[
+                        styles.paymentMethodTitle,
+                        selectedPaymentMethod === 'ncop' && styles.paymentMethodTitleSelected,
+                        !canPayWithNCOP() && styles.paymentMethodTitleDisabled
+                      ]}>
+                        NCOP
+                      </Text>
+                      <Text style={[
+                        styles.paymentMethodSubtitle,
+                        selectedPaymentMethod === 'ncop' && styles.paymentMethodSubtitleSelected,
+                        !canPayWithNCOP() && styles.paymentMethodSubtitleDisabled
+                      ]}>
+                        {Math.ceil(paymentData.amount / 100)} NCOP
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.paymentMethodOption,
+                      selectedPaymentMethod === 'fiat' && styles.paymentMethodSelected,
+                      !canPayWithCOP() && styles.paymentMethodDisabled
+                    ]}
+                    onPress={() => canPayWithCOP() && setSelectedPaymentMethod('fiat')}
+                    disabled={!canPayWithCOP()}
+                  >
+                    <CreditCard color={selectedPaymentMethod === 'fiat' ? '#ffffff' : '#2563eb'} size={20} />
+                    <View style={styles.paymentMethodText}>
+                      <Text style={[
+                        styles.paymentMethodTitle,
+                        selectedPaymentMethod === 'fiat' && styles.paymentMethodTitleSelected,
+                        !canPayWithCOP() && styles.paymentMethodTitleDisabled
+                      ]}>
+                        Dinero tradicional
+                      </Text>
+                      <Text style={[
+                        styles.paymentMethodSubtitle,
+                        selectedPaymentMethod === 'fiat' && styles.paymentMethodSubtitleSelected,
+                        !canPayWithCOP() && styles.paymentMethodSubtitleDisabled
+                      ]}>
+                        ${paymentData.amount.toLocaleString()} COP
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={closeModal}
+                    disabled={processing}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmButton,
+                      processing && styles.confirmButtonDisabled
+                    ]}
+                    onPress={processPayment}
+                    disabled={processing || (!canPayWithNCOP() && !canPayWithCOP())}
+                  >
+                    <Text style={styles.confirmButtonText}>
+                      {processing ? 'Procesando...' : 'Pagar'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -275,10 +457,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  balanceInfo: {
+  balanceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 8,
+  },
+  balanceItem: {
+    alignItems: 'center',
+  },
+  balanceLabel: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginBottom: 2,
+  },
+  balanceValue: {
     fontSize: 14,
-    color: '#cbd5e1',
-    textAlign: 'center',
+    fontWeight: '600',
+    color: '#ffffff',
   },
   webFallback: {
     flex: 1,
@@ -292,5 +488,135 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  paymentInfo: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  storeName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  paymentAmount: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#2563eb',
+    marginBottom: 8,
+  },
+  paymentDescription: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  paymentMethods: {
+    marginBottom: 24,
+  },
+  paymentMethodsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  paymentMethodOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#f8fafc',
+  },
+  paymentMethodSelected: {
+    borderColor: '#2563eb',
+    backgroundColor: '#2563eb',
+  },
+  paymentMethodDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#f1f5f9',
+  },
+  paymentMethodText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  paymentMethodTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  paymentMethodTitleSelected: {
+    color: '#ffffff',
+  },
+  paymentMethodTitleDisabled: {
+    color: '#94a3b8',
+  },
+  paymentMethodSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  paymentMethodSubtitleSelected: {
+    color: '#e0e7ff',
+  },
+  paymentMethodSubtitleDisabled: {
+    color: '#94a3b8',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });

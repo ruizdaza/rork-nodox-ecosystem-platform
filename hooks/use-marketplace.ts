@@ -557,18 +557,21 @@ export function useMarketplace() {
       return sum + (price * item.quantity);
     }, 0);
     const ncopSubtotal = items.reduce((sum, item) => {
-      const ncopPrice = item.variant?.ncopPrice || item.product.ncopPrice;
+      const ncopPrice = item.variant?.ncopPrice || item.product.ncopPrice || 0;
       return sum + (ncopPrice * item.quantity);
     }, 0);
     
-    const shipping = items.reduce((sum, item) => {
+    // Calculate shipping with better logic
+    const hasPhysicalItems = items.some(item => !item.product.isDigital);
+    const shipping = hasPhysicalItems ? items.reduce((sum, item) => {
+      if (item.product.isDigital) return sum; // Digital items don't need shipping
       if (item.product.shipping?.freeShipping || subtotal > 100) return sum;
       return sum + (item.product.shipping?.shippingCost || 0);
-    }, 0);
+    }, 0) : 0;
     
-    const tax = subtotal * 0.1; // 10% tax
+    const tax = subtotal * 0.19; // 19% IVA in Colombia
     const total = subtotal + shipping + tax;
-    const ncopTotal = ncopSubtotal + shipping + tax;
+    const ncopTotal = ncopSubtotal; // NCOP doesn't include shipping/tax conversion
 
     setCart({
       items,
@@ -580,6 +583,67 @@ export function useMarketplace() {
       total,
       ncopTotal
     });
+  };
+
+  // New function to handle physical store payments
+  const processPhysicalStorePayment = async (storeId: string, amount: number, paymentMethod: 'ncop' | 'fiat'): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (paymentMethod === 'ncop') {
+        const ncopAmount = Math.ceil(amount / 100); // Convert COP to NCOP
+        if (ncopBalance < ncopAmount) {
+          return { success: false, error: 'Saldo NCOP insuficiente' };
+        }
+        const success = spendNcop(ncopAmount);
+        if (!success) {
+          return { success: false, error: 'Error al procesar pago con NCOP' };
+        }
+      } else {
+        if (copBalance < amount) {
+          return { success: false, error: 'Saldo COP insuficiente' };
+        }
+        updateCopBalance(copBalance - amount);
+      }
+      
+      console.log(`Physical store payment processed: Store ${storeId}, Amount: ${amount}, Method: ${paymentMethod}`);
+      return { success: true };
+    } catch (error) {
+      console.error('Physical store payment error:', error);
+      return { success: false, error: 'Error inesperado al procesar el pago' };
+    }
+  };
+
+  // Enhanced payment validation
+  const validatePayment = (paymentMethod: 'ncop' | 'fiat' | 'mixed', ncopAmount?: number) => {
+    const totalAmount = cart.total;
+    const totalNcopAmount = ncopAmount || cart.ncopTotal;
+    
+    switch (paymentMethod) {
+      case 'ncop':
+        if (ncopBalance < totalNcopAmount) {
+          return { valid: false, error: `Saldo NCOP insuficiente. Necesitas ${totalNcopAmount.toFixed(2)} NCOP, tienes ${ncopBalance.toFixed(2)} NCOP` };
+        }
+        break;
+        
+      case 'fiat':
+        if (copBalance < totalAmount) {
+          return { valid: false, error: `Saldo COP insuficiente. Necesitas ${totalAmount.toFixed(2)}, tienes ${copBalance.toFixed(2)}` };
+        }
+        break;
+        
+      case 'mixed':
+        const ncopPortion = ncopAmount || 0;
+        const copPortion = totalAmount - (ncopPortion * 100);
+        
+        if (ncopBalance < ncopPortion) {
+          return { valid: false, error: `Saldo NCOP insuficiente para pago mixto. Necesitas ${ncopPortion.toFixed(2)} NCOP, tienes ${ncopBalance.toFixed(2)} NCOP` };
+        }
+        if (copBalance < copPortion) {
+          return { valid: false, error: `Saldo COP insuficiente para pago mixto. Necesitas ${copPortion.toFixed(2)}, tienes ${copBalance.toFixed(2)}` };
+        }
+        break;
+    }
+    
+    return { valid: true };
   };
 
   return {
@@ -596,6 +660,8 @@ export function useMarketplace() {
     updateCartItemQuantity,
     clearCart,
     processPayment,
+    processPhysicalStorePayment,
+    validatePayment,
     canAffordWithNCOP,
     canAffordWithCOP,
     getPaymentOptions,

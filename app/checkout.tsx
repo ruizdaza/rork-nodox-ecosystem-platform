@@ -19,11 +19,9 @@ import {
   Loader2
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
-import { useNodoX } from '@/hooks/use-nodox-store';
 
 export default function CheckoutScreen() {
   const { cart, processPayment, processingPayment, getPaymentOptions, ncopBalance, copBalance } = useMarketplace();
-  const { formatNcopBalance } = useNodoX();
   const [paymentMethod, setPaymentMethod] = useState<'ncop' | 'fiat' | 'mixed'>('ncop');
   const [ncopAmount, setNcopAmount] = useState<number>(0);
   const [shippingAddress, setShippingAddress] = useState({
