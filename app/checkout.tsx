@@ -15,13 +15,17 @@ import {
   CreditCard,
   MapPin,
   Truck,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import { useNodoX } from '@/hooks/use-nodox-store';
 
 export default function CheckoutScreen() {
-  const { cart, clearCart } = useMarketplace();
+  const { cart, processPayment, processingPayment, getPaymentOptions, ncopBalance, copBalance } = useMarketplace();
+  const { formatNcopBalance } = useNodoX();
   const [paymentMethod, setPaymentMethod] = useState<'ncop' | 'fiat' | 'mixed'>('ncop');
+  const [ncopAmount, setNcopAmount] = useState<number>(0);
   const [shippingAddress, setShippingAddress] = useState({
     name: '',
     street: '',
@@ -30,28 +34,55 @@ export default function CheckoutScreen() {
     zipCode: '',
     phone: ''
   });
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  
+  const paymentOptions = getPaymentOptions();
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     // Validate form
     if (!shippingAddress.name || !shippingAddress.street || !shippingAddress.city) {
       Alert.alert('Error', 'Por favor completa todos los campos requeridos');
       return;
     }
 
-    // Simulate order placement
-    Alert.alert(
-      'Pedido realizado',
-      'Tu pedido ha sido procesado exitosamente. Recibirás un email de confirmación.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            clearCart();
-            router.push('/(tabs)/marketplace');
-          }
-        }
-      ]
-    );
+    // Validate payment method availability
+    if (paymentMethod === 'ncop' && !paymentOptions.ncop) {
+      Alert.alert('Error', 'Saldo NCOP insuficiente para este pedido');
+      return;
+    }
+    
+    if (paymentMethod === 'fiat' && !paymentOptions.fiat) {
+      Alert.alert('Error', 'Saldo COP insuficiente para este pedido');
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      const result = await processPayment(paymentMethod, paymentMethod === 'mixed' ? ncopAmount : undefined);
+      
+      if (result.success) {
+        Alert.alert(
+          '¡Pedido realizado!',
+          'Tu pedido ha sido procesado exitosamente. Recibirás un email de confirmación.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.push('/(tabs)/marketplace');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error en el pago', result.error || 'No se pudo procesar el pago');
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      Alert.alert('Error', 'Ocurrió un error inesperado. Intenta nuevamente.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (cart.items.length === 0) {
@@ -139,17 +170,22 @@ export default function CheckoutScreen() {
             <TouchableOpacity
               style={[
                 styles.paymentMethod,
-                paymentMethod === 'ncop' && styles.paymentMethodActive
+                paymentMethod === 'ncop' && styles.paymentMethodActive,
+                !paymentOptions.ncop && styles.paymentMethodDisabled
               ]}
-              onPress={() => setPaymentMethod('ncop')}
+              onPress={() => paymentOptions.ncop && setPaymentMethod('ncop')}
+              disabled={!paymentOptions.ncop}
             >
               <View style={styles.paymentMethodContent}>
-                <Text style={styles.paymentMethodTitle}>NCOP</Text>
-                <Text style={styles.paymentMethodSubtitle}>
+                <Text style={[styles.paymentMethodTitle, !paymentOptions.ncop && styles.paymentMethodTitleDisabled]}>NCOP</Text>
+                <Text style={[styles.paymentMethodSubtitle, !paymentOptions.ncop && styles.paymentMethodSubtitleDisabled]}>
                   Pagar con tokens NCOP
                 </Text>
+                <Text style={[styles.paymentMethodBalance, !paymentOptions.ncop && styles.paymentMethodBalanceDisabled]}>
+                  Disponible: {ncopBalance.toLocaleString()} NCOP
+                </Text>
               </View>
-              <Text style={styles.paymentMethodPrice}>
+              <Text style={[styles.paymentMethodPrice, !paymentOptions.ncop && styles.paymentMethodPriceDisabled]}>
                 {cart.ncopTotal.toFixed(2)} NCOP
               </Text>
             </TouchableOpacity>
@@ -157,17 +193,22 @@ export default function CheckoutScreen() {
             <TouchableOpacity
               style={[
                 styles.paymentMethod,
-                paymentMethod === 'fiat' && styles.paymentMethodActive
+                paymentMethod === 'fiat' && styles.paymentMethodActive,
+                !paymentOptions.fiat && styles.paymentMethodDisabled
               ]}
-              onPress={() => setPaymentMethod('fiat')}
+              onPress={() => paymentOptions.fiat && setPaymentMethod('fiat')}
+              disabled={!paymentOptions.fiat}
             >
               <View style={styles.paymentMethodContent}>
-                <Text style={styles.paymentMethodTitle}>Dinero tradicional</Text>
-                <Text style={styles.paymentMethodSubtitle}>
-                  Pagar con tarjeta o transferencia
+                <Text style={[styles.paymentMethodTitle, !paymentOptions.fiat && styles.paymentMethodTitleDisabled]}>Dinero tradicional</Text>
+                <Text style={[styles.paymentMethodSubtitle, !paymentOptions.fiat && styles.paymentMethodSubtitleDisabled]}>
+                  Pagar con saldo COP
+                </Text>
+                <Text style={[styles.paymentMethodBalance, !paymentOptions.fiat && styles.paymentMethodBalanceDisabled]}>
+                  Disponible: ${copBalance.toLocaleString()}
                 </Text>
               </View>
-              <Text style={styles.paymentMethodPrice}>
+              <Text style={[styles.paymentMethodPrice, !paymentOptions.fiat && styles.paymentMethodPriceDisabled]}>
                 ${cart.total.toFixed(2)}
               </Text>
             </TouchableOpacity>
@@ -175,22 +216,54 @@ export default function CheckoutScreen() {
             <TouchableOpacity
               style={[
                 styles.paymentMethod,
-                paymentMethod === 'mixed' && styles.paymentMethodActive
+                paymentMethod === 'mixed' && styles.paymentMethodActive,
+                !paymentOptions.mixed && styles.paymentMethodDisabled
               ]}
-              onPress={() => setPaymentMethod('mixed')}
+              onPress={() => paymentOptions.mixed && setPaymentMethod('mixed')}
+              disabled={!paymentOptions.mixed}
             >
               <View style={styles.paymentMethodContent}>
-                <Text style={styles.paymentMethodTitle}>Pago mixto</Text>
-                <Text style={styles.paymentMethodSubtitle}>
+                <Text style={[styles.paymentMethodTitle, !paymentOptions.mixed && styles.paymentMethodTitleDisabled]}>Pago mixto</Text>
+                <Text style={[styles.paymentMethodSubtitle, !paymentOptions.mixed && styles.paymentMethodSubtitleDisabled]}>
                   Combinar NCOP y dinero tradicional
                 </Text>
               </View>
-              <Text style={styles.paymentMethodPrice}>
+              <Text style={[styles.paymentMethodPrice, !paymentOptions.mixed && styles.paymentMethodPriceDisabled]}>
                 Personalizar
               </Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Mixed Payment Controls */}
+        {paymentMethod === 'mixed' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Configurar Pago Mixto</Text>
+            <View style={styles.mixedPaymentControls}>
+              <View style={styles.mixedPaymentInput}>
+                <Text style={styles.mixedPaymentLabel}>Cantidad NCOP:</Text>
+                <TextInput
+                  style={styles.mixedPaymentTextInput}
+                  value={ncopAmount.toString()}
+                  onChangeText={(text) => {
+                    const amount = parseFloat(text) || 0;
+                    setNcopAmount(Math.min(amount, Math.min(ncopBalance, cart.ncopTotal)));
+                  }}
+                  keyboardType="numeric"
+                  placeholder="0"
+                />
+                <Text style={styles.mixedPaymentMax}>
+                  Máx: {Math.min(ncopBalance, cart.ncopTotal).toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.mixedPaymentSummary}>
+                <Text style={styles.mixedPaymentSummaryText}>
+                  NCOP: {ncopAmount.toFixed(2)} • COP: ${(cart.total - (ncopAmount * 100)).toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Order Summary */}
         <View style={styles.section}>
@@ -263,15 +336,27 @@ export default function CheckoutScreen() {
       {/* Place Order Button */}
       <View style={styles.checkoutContainer}>
         <TouchableOpacity 
-          style={styles.placeOrderButton}
+          style={[styles.placeOrderButton, (isProcessing || processingPayment) && styles.placeOrderButtonDisabled]}
           onPress={handlePlaceOrder}
+          disabled={isProcessing || processingPayment}
         >
-          <CheckCircle color="#ffffff" size={20} />
-          <Text style={styles.placeOrderText}>
-            Realizar pedido - {paymentMethod === 'ncop' 
-              ? `${cart.ncopTotal.toFixed(2)} NCOP` 
-              : `$${cart.total.toFixed(2)}`}
-          </Text>
+          {(isProcessing || processingPayment) ? (
+            <>
+              <Loader2 color="#ffffff" size={20} />
+              <Text style={styles.placeOrderText}>Procesando...</Text>
+            </>
+          ) : (
+            <>
+              <CheckCircle color="#ffffff" size={20} />
+              <Text style={styles.placeOrderText}>
+                Realizar pedido - {paymentMethod === 'ncop' 
+                  ? `${cart.ncopTotal.toFixed(2)} NCOP` 
+                  : paymentMethod === 'mixed'
+                  ? `${ncopAmount.toFixed(2)} NCOP + $${(cart.total - (ncopAmount * 100)).toFixed(2)}`
+                  : `$${cart.total.toFixed(2)}`}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -365,6 +450,10 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
     backgroundColor: '#eff6ff',
   },
+  paymentMethodDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#f1f5f9',
+  },
   paymentMethodContent: {
     flex: 1,
   },
@@ -374,14 +463,70 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 4,
   },
+  paymentMethodTitleDisabled: {
+    color: '#94a3b8',
+  },
   paymentMethodSubtitle: {
     fontSize: 14,
     color: '#64748b',
+  },
+  paymentMethodSubtitleDisabled: {
+    color: '#94a3b8',
+  },
+  paymentMethodBalance: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  paymentMethodBalanceDisabled: {
+    color: '#94a3b8',
   },
   paymentMethodPrice: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2563eb',
+  },
+  paymentMethodPriceDisabled: {
+    color: '#94a3b8',
+  },
+  mixedPaymentControls: {
+    gap: 12,
+  },
+  mixedPaymentInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mixedPaymentLabel: {
+    fontSize: 14,
+    color: '#374151',
+    minWidth: 100,
+  },
+  mixedPaymentTextInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    backgroundColor: '#ffffff',
+  },
+  mixedPaymentMax: {
+    fontSize: 12,
+    color: '#64748b',
+    minWidth: 80,
+  },
+  mixedPaymentSummary: {
+    backgroundColor: '#eff6ff',
+    padding: 12,
+    borderRadius: 8,
+  },
+  mixedPaymentSummaryText: {
+    fontSize: 14,
+    color: '#2563eb',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   orderSummary: {
     gap: 12,
@@ -468,6 +613,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
+  },
+  placeOrderButtonDisabled: {
+    backgroundColor: '#94a3b8',
   },
   placeOrderText: {
     color: '#ffffff',

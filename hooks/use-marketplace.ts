@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Product, Category, Cart, CartItem, SearchFilters } from '@/types/marketplace';
+import { useNodoX } from './use-nodox-store';
 
 // Mock data
 const mockCategories: Category[] = [
@@ -309,6 +310,7 @@ const mockProducts: Product[] = [
 ];
 
 export function useMarketplace() {
+  const { ncopBalance, copBalance, spendNcop, updateCopBalance } = useNodoX();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [cart, setCart] = useState<Cart>({
@@ -322,6 +324,7 @@ export function useMarketplace() {
     ncopTotal: 0
   });
   const [loading, setLoading] = useState<boolean>(true);
+  const [processingPayment, setProcessingPayment] = useState<boolean>(false);
 
   useEffect(() => {
     // Simulate API call
@@ -464,6 +467,89 @@ export function useMarketplace() {
     updateCart([]);
   };
 
+  const processPayment = async (paymentMethod: 'ncop' | 'fiat' | 'mixed', ncopAmount?: number): Promise<{ success: boolean; error?: string }> => {
+    setProcessingPayment(true);
+    
+    try {
+      const totalAmount = cart.total;
+      const totalNcopAmount = ncopAmount || cart.ncopTotal;
+      
+      switch (paymentMethod) {
+        case 'ncop':
+          if (ncopBalance < totalNcopAmount) {
+            return { success: false, error: 'Saldo NCOP insuficiente' };
+          }
+          const ncopSuccess = spendNcop(totalNcopAmount);
+          if (!ncopSuccess) {
+            return { success: false, error: 'Error al procesar pago con NCOP' };
+          }
+          break;
+          
+        case 'fiat':
+          if (copBalance < totalAmount) {
+            return { success: false, error: 'Saldo COP insuficiente' };
+          }
+          updateCopBalance(copBalance - totalAmount);
+          break;
+          
+        case 'mixed':
+          const ncopPortion = ncopAmount || 0;
+          const copPortion = totalAmount - (ncopPortion * 100); // Convert NCOP to COP
+          
+          if (ncopBalance < ncopPortion) {
+            return { success: false, error: 'Saldo NCOP insuficiente para pago mixto' };
+          }
+          if (copBalance < copPortion) {
+            return { success: false, error: 'Saldo COP insuficiente para pago mixto' };
+          }
+          
+          const mixedNcopSuccess = spendNcop(ncopPortion);
+          if (!mixedNcopSuccess) {
+            return { success: false, error: 'Error al procesar porción NCOP del pago' };
+          }
+          updateCopBalance(copBalance - copPortion);
+          break;
+          
+        default:
+          return { success: false, error: 'Método de pago no válido' };
+      }
+      
+      // Simulate order processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Clear cart after successful payment
+      clearCart();
+      
+      console.log(`Payment processed successfully: ${paymentMethod}, Amount: ${totalAmount}`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('Payment processing error:', error);
+      return { success: false, error: 'Error inesperado al procesar el pago' };
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
+  const canAffordWithNCOP = (amount: number): boolean => {
+    return ncopBalance >= amount;
+  };
+
+  const canAffordWithCOP = (amount: number): boolean => {
+    return copBalance >= amount;
+  };
+
+  const getPaymentOptions = () => {
+    const canPayNCOP = canAffordWithNCOP(cart.ncopTotal);
+    const canPayCOP = canAffordWithCOP(cart.total);
+    
+    return {
+      ncop: canPayNCOP,
+      fiat: canPayCOP,
+      mixed: ncopBalance > 0 || copBalance > 0
+    };
+  };
+
   const updateCart = (items: CartItem[]) => {
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = items.reduce((sum, item) => {
@@ -501,12 +587,19 @@ export function useMarketplace() {
     categories,
     cart,
     loading,
+    processingPayment,
     searchProducts,
     getProductsByCategory,
     getFeaturedProducts,
     addToCart,
     removeFromCart,
     updateCartItemQuantity,
-    clearCart
+    clearCart,
+    processPayment,
+    canAffordWithNCOP,
+    canAffordWithCOP,
+    getPaymentOptions,
+    ncopBalance,
+    copBalance
   };
 }
