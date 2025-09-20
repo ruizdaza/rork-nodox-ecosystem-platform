@@ -7,6 +7,8 @@ import { StyleSheet } from "react-native";
 import { NodoXProvider } from "@/hooks/use-nodox-store";
 import { ChatProvider } from "@/hooks/use-chat";
 import { NotificationProvider } from "@/hooks/use-notifications";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorUtils } from "@/utils/security";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,18 +35,27 @@ export default function RootLayout() {
     SplashScreen.hideAsync();
   }, []);
 
+  const handleError = (error: Error, errorInfo: any) => {
+    ErrorUtils.logError(error, 'RootLayout');
+    console.error('Root layout error:', error, errorInfo);
+  };
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <NotificationProvider>
-        <NodoXProvider>
-          <ChatProvider>
-            <GestureHandlerRootView style={styles.container}>
-              <RootLayoutNav />
-            </GestureHandlerRootView>
-          </ChatProvider>
-        </NodoXProvider>
-      </NotificationProvider>
-    </QueryClientProvider>
+    <ErrorBoundary onError={handleError}>
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <NodoXProvider>
+            <ChatProvider>
+              <GestureHandlerRootView style={styles.container}>
+                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                  <RootLayoutNav />
+                </ErrorBoundary>
+              </GestureHandlerRootView>
+            </ChatProvider>
+          </NodoXProvider>
+        </NotificationProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

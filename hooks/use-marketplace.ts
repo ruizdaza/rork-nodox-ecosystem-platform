@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Product, Category, Cart, CartItem, SearchFilters } from '@/types/marketplace';
 import { useNodoX } from './use-nodox-store';
+import { ValidationUtils, ErrorUtils } from '@/utils/security';
 
 // Mock data
 const mockCategories: Category[] = [
@@ -415,35 +416,70 @@ export function useMarketplace() {
   };
 
   const addToCart = (productId: string, quantity: number = 1, variantId?: string) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
+    try {
+      // Security validation: Validate inputs
+      if (typeof productId !== 'string' || !productId.trim()) {
+        ValidationUtils.logSecurityEvent('Invalid productId in addToCart', { productId });
+        return;
+      }
+      
+      if (typeof quantity !== 'number' || quantity <= 0 || quantity > 100) {
+        ValidationUtils.logSecurityEvent('Invalid quantity in addToCart', { quantity });
+        return;
+      }
 
-    const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined;
-    const existingItemIndex = cart.items.findIndex(
-      item => item.productId === productId && item.variantId === variantId
-    );
+      const product = products.find(p => p.id === productId);
+      if (!product) {
+        ValidationUtils.logSecurityEvent('Product not found in addToCart', { productId });
+        return;
+      }
 
-    let newItems: CartItem[];
-    
-    if (existingItemIndex >= 0) {
-      // Update existing item
-      newItems = [...cart.items];
-      newItems[existingItemIndex].quantity += quantity;
-    } else {
-      // Add new item
-      const newItem: CartItem = {
-        id: `${productId}-${variantId || 'default'}-${Date.now()}`,
-        productId,
-        product,
-        quantity,
-        variantId,
-        variant,
-        addedAt: new Date().toISOString()
-      };
-      newItems = [...cart.items, newItem];
+      // Check stock availability
+      const availableStock = variantId 
+        ? product.variants?.find(v => v.id === variantId)?.stock || 0
+        : product.stock;
+        
+      if (availableStock < quantity) {
+        console.warn('Insufficient stock for product:', productId, 'requested:', quantity, 'available:', availableStock);
+        return;
+      }
+
+      const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined;
+      const existingItemIndex = cart.items.findIndex(
+        item => item.productId === productId && item.variantId === variantId
+      );
+
+      let newItems: CartItem[];
+      
+      if (existingItemIndex >= 0) {
+        // Update existing item with stock validation
+        newItems = [...cart.items];
+        const newQuantity = newItems[existingItemIndex].quantity + quantity;
+        
+        if (newQuantity > availableStock) {
+          console.warn('Cannot add more items, would exceed stock');
+          return;
+        }
+        
+        newItems[existingItemIndex].quantity = newQuantity;
+      } else {
+        // Add new item
+        const newItem: CartItem = {
+          id: ValidationUtils.generateSecureId(),
+          productId,
+          product,
+          quantity,
+          variantId,
+          variant,
+          addedAt: new Date().toISOString()
+        };
+        newItems = [...cart.items, newItem];
+      }
+
+      updateCart(newItems);
+    } catch (error) {
+      ErrorUtils.logError(error, 'addToCart');
     }
-
-    updateCart(newItems);
   };
 
   const removeFromCart = (itemId: string) => {
@@ -471,8 +507,41 @@ export function useMarketplace() {
     setProcessingPayment(true);
     
     try {
+      // Security validation: Validate cart integrity
+      const cartValidation = ValidationUtils.validateCart(cart);
+      if (!cartValidation.valid) {
+        ValidationUtils.logSecurityEvent('Invalid cart in payment', { cart, error: cartValidation.error });
+        return { success: false, error: cartValidation.error };
+      }
+
       const totalAmount = cart.total;
       const totalNcopAmount = ncopAmount || cart.ncopTotal;
+      
+      // Security validation: Validate payment amounts
+      if (paymentMethod === 'ncop') {
+        const ncopValidation = ValidationUtils.validatePaymentAmount(totalNcopAmount, ncopBalance);
+        if (!ncopValidation.valid) {
+          return { success: false, error: ncopValidation.error };
+        }
+      } else if (paymentMethod === 'fiat') {
+        const copValidation = ValidationUtils.validatePaymentAmount(totalAmount, copBalance);
+        if (!copValidation.valid) {
+          return { success: false, error: copValidation.error };
+        }
+      } else if (paymentMethod === 'mixed') {
+        const ncopPortion = ncopAmount || 0;
+        const copPortion = totalAmount - (ncopPortion * 100);
+        
+        const ncopValidation = ValidationUtils.validatePaymentAmount(ncopPortion, ncopBalance);
+        const copValidation = ValidationUtils.validatePaymentAmount(copPortion, copBalance);
+        
+        if (!ncopValidation.valid) {
+          return { success: false, error: `NCOP: ${ncopValidation.error}` };
+        }
+        if (!copValidation.valid) {
+          return { success: false, error: `COP: ${copValidation.error}` };
+        }
+      }
       
       switch (paymentMethod) {
         case 'ncop':
@@ -511,11 +580,16 @@ export function useMarketplace() {
           break;
           
         default:
+          ValidationUtils.logSecurityEvent('Invalid payment method', { paymentMethod });
           return { success: false, error: 'Método de pago no válido' };
       }
       
-      // Simulate order processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Simulate order processing delay with retry mechanism
+      await ErrorUtils.retryWithBackoff(
+        () => new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+        2,
+        1000
+      );
       
       // Clear cart after successful payment
       clearCart();
@@ -524,8 +598,8 @@ export function useMarketplace() {
       return { success: true };
       
     } catch (error) {
-      console.error('Payment processing error:', error);
-      return { success: false, error: 'Error inesperado al procesar el pago' };
+      ErrorUtils.logError(error, 'processPayment');
+      return { success: false, error: ErrorUtils.getUserFriendlyMessage(error) };
     } finally {
       setProcessingPayment(false);
     }
@@ -588,6 +662,21 @@ export function useMarketplace() {
   // New function to handle physical store payments
   const processPhysicalStorePayment = async (storeId: string, amount: number, paymentMethod: 'ncop' | 'fiat'): Promise<{ success: boolean; error?: string }> => {
     try {
+      // Security validation: Validate inputs
+      if (typeof storeId !== 'string' || !storeId.trim()) {
+        ValidationUtils.logSecurityEvent('Invalid storeId in physical payment', { storeId });
+        return { success: false, error: 'ID de tienda inválido' };
+      }
+      
+      const amountValidation = ValidationUtils.validatePaymentAmount(
+        amount, 
+        paymentMethod === 'ncop' ? ncopBalance * 100 : copBalance
+      );
+      
+      if (!amountValidation.valid) {
+        return { success: false, error: amountValidation.error };
+      }
+      
       if (paymentMethod === 'ncop') {
         const ncopAmount = Math.ceil(amount / 100); // Convert COP to NCOP
         if (ncopBalance < ncopAmount) {
@@ -607,8 +696,8 @@ export function useMarketplace() {
       console.log(`Physical store payment processed: Store ${storeId}, Amount: ${amount}, Method: ${paymentMethod}`);
       return { success: true };
     } catch (error) {
-      console.error('Physical store payment error:', error);
-      return { success: false, error: 'Error inesperado al procesar el pago' };
+      ErrorUtils.logError(error, 'processPhysicalStorePayment');
+      return { success: false, error: ErrorUtils.getUserFriendlyMessage(error) };
     }
   };
 

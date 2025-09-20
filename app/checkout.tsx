@@ -6,7 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -19,9 +20,24 @@ import {
   Loader2
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import { useNodoX } from '@/hooks/use-nodox-store';
+
+// Cross-platform modal component for better UX
+const showAlert = (title: string, message: string, buttons?: Array<{ text: string; onPress?: () => void }>) => {
+  if (Platform.OS === 'web') {
+    // For web, use a simple alert for now - in production you'd use a proper modal
+    const result = window.confirm(`${title}\n\n${message}`);
+    if (result && buttons?.[0]?.onPress) {
+      buttons[0].onPress();
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export default function CheckoutScreen() {
-  const { cart, processPayment, processingPayment, getPaymentOptions, ncopBalance, copBalance } = useMarketplace();
+  const { cart, processPayment, processingPayment, getPaymentOptions, ncopBalance, copBalance, validatePayment } = useMarketplace();
+  const { formatNcopBalance } = useNodoX();
   const [paymentMethod, setPaymentMethod] = useState<'ncop' | 'fiat' | 'mixed'>('ncop');
   const [ncopAmount, setNcopAmount] = useState<number>(0);
   const [shippingAddress, setShippingAddress] = useState({
@@ -36,31 +52,90 @@ export default function CheckoutScreen() {
   
   const paymentOptions = getPaymentOptions();
 
+  const validateShippingAddress = () => {
+    const errors: string[] = [];
+    
+    if (!shippingAddress.name?.trim()) {
+      errors.push('Nombre completo es requerido');
+    } else if (shippingAddress.name.trim().length < 2) {
+      errors.push('Nombre debe tener al menos 2 caracteres');
+    }
+    
+    if (!shippingAddress.street?.trim()) {
+      errors.push('Dirección es requerida');
+    } else if (shippingAddress.street.trim().length < 5) {
+      errors.push('Dirección debe tener al menos 5 caracteres');
+    }
+    
+    if (!shippingAddress.city?.trim()) {
+      errors.push('Ciudad es requerida');
+    } else if (shippingAddress.city.trim().length < 2) {
+      errors.push('Ciudad debe tener al menos 2 caracteres');
+    }
+    
+    if (shippingAddress.phone && !/^[+]?[0-9\s\-()]{7,15}$/.test(shippingAddress.phone.trim())) {
+      errors.push('Formato de teléfono inválido');
+    }
+    
+    if (shippingAddress.zipCode && !/^[0-9]{5,10}$/.test(shippingAddress.zipCode.trim())) {
+      errors.push('Código postal debe tener entre 5 y 10 dígitos');
+    }
+    
+    return errors;
+  };
+
   const handlePlaceOrder = async () => {
-    // Validate form
-    if (!shippingAddress.name || !shippingAddress.street || !shippingAddress.city) {
-      Alert.alert('Error', 'Por favor completa todos los campos requeridos');
-      return;
-    }
-
-    // Validate payment method availability
-    if (paymentMethod === 'ncop' && !paymentOptions.ncop) {
-      Alert.alert('Error', 'Saldo NCOP insuficiente para este pedido');
-      return;
-    }
-    
-    if (paymentMethod === 'fiat' && !paymentOptions.fiat) {
-      Alert.alert('Error', 'Saldo COP insuficiente para este pedido');
-      return;
-    }
-
-    setIsProcessing(true);
-    
     try {
-      const result = await processPayment(paymentMethod, paymentMethod === 'mixed' ? ncopAmount : undefined);
+      // Security validation: Check if cart is empty
+      if (!cart || cart.items.length === 0) {
+        showAlert('Error', 'Tu carrito está vacío');
+        return;
+      }
+
+      // Validate shipping address with detailed errors
+      const addressErrors = validateShippingAddress();
+      if (addressErrors.length > 0) {
+        showAlert(
+          'Errores en la dirección de envío',
+          addressErrors.join('\n'),
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Enhanced payment validation
+      const paymentValidation = validatePayment(paymentMethod, paymentMethod === 'mixed' ? ncopAmount : undefined);
+      if (!paymentValidation.valid) {
+        showAlert('Error de pago', paymentValidation.error || 'Error en la validación del pago');
+        return;
+      }
+
+      // Security check: Validate payment amounts
+      if (paymentMethod === 'mixed') {
+        if (ncopAmount < 0 || ncopAmount > Math.min(ncopBalance, cart.ncopTotal)) {
+          showAlert('Error', 'Cantidad de NCOP inválida para pago mixto');
+          return;
+        }
+      }
+
+      // Security check: Validate cart totals
+      if (cart.total <= 0 || cart.ncopTotal < 0) {
+        showAlert('Error', 'Totales del carrito inválidos');
+        return;
+      }
+
+      setIsProcessing(true);
+      
+      // Process payment with timeout protection
+      const paymentPromise = processPayment(paymentMethod, paymentMethod === 'mixed' ? ncopAmount : undefined);
+      const timeoutPromise = new Promise<{ success: boolean; error: string }>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 30000)
+      );
+      
+      const result = await Promise.race([paymentPromise, timeoutPromise]);
       
       if (result.success) {
-        Alert.alert(
+        showAlert(
           '¡Pedido realizado!',
           'Tu pedido ha sido procesado exitosamente. Recibirás un email de confirmación.',
           [
@@ -73,11 +148,25 @@ export default function CheckoutScreen() {
           ]
         );
       } else {
-        Alert.alert('Error en el pago', result.error || 'No se pudo procesar el pago');
+        showAlert(
+          'Error en el pago', 
+          result.error || 'No se pudo procesar el pago. Verifica tu saldo e intenta nuevamente.'
+        );
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      Alert.alert('Error', 'Ocurrió un error inesperado. Intenta nuevamente.');
+      
+      let errorMessage = 'Ocurrió un error inesperado. Intenta nuevamente.';
+      
+      if (error instanceof Error) {
+        if (error.message === 'Timeout') {
+          errorMessage = 'El pago está tardando más de lo esperado. Verifica tu conexión e intenta nuevamente.';
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Error de conexión. Verifica tu internet e intenta nuevamente.';
+        }
+      }
+      
+      showAlert('Error', errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -97,6 +186,7 @@ export default function CheckoutScreen() {
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => router.back()}
+          testID="back-button"
         >
           <ArrowLeft color="#1e293b" size={24} />
         </TouchableOpacity>
@@ -117,26 +207,53 @@ export default function CheckoutScreen() {
               style={styles.input}
               placeholder="Nombre completo *"
               value={shippingAddress.name}
-              onChangeText={(text) => setShippingAddress(prev => ({ ...prev, name: text }))}
+              onChangeText={(text) => {
+                // Security: Sanitize input and limit length
+                const sanitized = text.replace(/[<>"'&]/g, '').slice(0, 100);
+                setShippingAddress(prev => ({ ...prev, name: sanitized }));
+              }}
+              maxLength={100}
+              autoCapitalize="words"
+              testID="shipping-name-input"
             />
             <TextInput
               style={styles.input}
               placeholder="Dirección *"
               value={shippingAddress.street}
-              onChangeText={(text) => setShippingAddress(prev => ({ ...prev, street: text }))}
+              onChangeText={(text) => {
+                // Security: Sanitize input and limit length
+                const sanitized = text.replace(/[<>"'&]/g, '').slice(0, 200);
+                setShippingAddress(prev => ({ ...prev, street: sanitized }));
+              }}
+              maxLength={200}
+              testID="shipping-street-input"
             />
             <View style={styles.row}>
               <TextInput
                 style={[styles.input, styles.halfInput]}
                 placeholder="Ciudad *"
                 value={shippingAddress.city}
-                onChangeText={(text) => setShippingAddress(prev => ({ ...prev, city: text }))}
+                onChangeText={(text) => {
+                  // Security: Sanitize input and limit length
+                  const sanitized = text.replace(/[<>"'&0-9]/g, '').slice(0, 50);
+                  setShippingAddress(prev => ({ ...prev, city: sanitized }));
+                }}
+                maxLength={50}
+                autoCapitalize="words"
+                testID="shipping-city-input"
               />
               <TextInput
                 style={[styles.input, styles.halfInput]}
                 placeholder="Estado"
                 value={shippingAddress.state}
-                onChangeText={(text) => setShippingAddress(prev => ({ ...prev, state: text }))}
+                onChangeText={(text) => {
+                  // Security: Sanitize input and limit length
+                  const sanitized = text.replace(/[<>"'&0-9]/g, '').slice(0, 50);
+                  setShippingAddress(prev => ({ ...prev, state: sanitized }));
+                }}
+                maxLength={50}
+                autoCapitalize="words"
+                testID="shipping-state-input"
               />
             </View>
             <View style={styles.row}>
@@ -144,14 +261,27 @@ export default function CheckoutScreen() {
                 style={[styles.input, styles.halfInput]}
                 placeholder="Código postal"
                 value={shippingAddress.zipCode}
-                onChangeText={(text) => setShippingAddress(prev => ({ ...prev, zipCode: text }))}
+                onChangeText={(text) => {
+                  // Security: Only allow numbers and limit length
+                  const sanitized = text.replace(/[^0-9]/g, '').slice(0, 10);
+                  setShippingAddress(prev => ({ ...prev, zipCode: sanitized }));
+                }}
+                maxLength={10}
+                keyboardType="numeric"
+                testID="shipping-zipcode-input"
               />
               <TextInput
                 style={[styles.input, styles.halfInput]}
                 placeholder="Teléfono"
                 value={shippingAddress.phone}
-                onChangeText={(text) => setShippingAddress(prev => ({ ...prev, phone: text }))}
+                onChangeText={(text) => {
+                  // Security: Only allow phone characters and limit length
+                  const sanitized = text.replace(/[^0-9+\s\-()]/g, '').slice(0, 15);
+                  setShippingAddress(prev => ({ ...prev, phone: sanitized }));
+                }}
+                maxLength={15}
                 keyboardType="phone-pad"
+                testID="shipping-phone-input"
               />
             </View>
           </View>
@@ -173,6 +303,7 @@ export default function CheckoutScreen() {
               ]}
               onPress={() => paymentOptions.ncop && setPaymentMethod('ncop')}
               disabled={!paymentOptions.ncop}
+              testID="payment-method-ncop"
             >
               <View style={styles.paymentMethodContent}>
                 <Text style={[styles.paymentMethodTitle, !paymentOptions.ncop && styles.paymentMethodTitleDisabled]}>NCOP</Text>
@@ -180,7 +311,7 @@ export default function CheckoutScreen() {
                   Pagar con tokens NCOP
                 </Text>
                 <Text style={[styles.paymentMethodBalance, !paymentOptions.ncop && styles.paymentMethodBalanceDisabled]}>
-                  Disponible: {ncopBalance.toLocaleString()} NCOP
+                  Disponible: {formatNcopBalance(ncopBalance)}
                 </Text>
               </View>
               <Text style={[styles.paymentMethodPrice, !paymentOptions.ncop && styles.paymentMethodPriceDisabled]}>
@@ -196,6 +327,7 @@ export default function CheckoutScreen() {
               ]}
               onPress={() => paymentOptions.fiat && setPaymentMethod('fiat')}
               disabled={!paymentOptions.fiat}
+              testID="payment-method-fiat"
             >
               <View style={styles.paymentMethodContent}>
                 <Text style={[styles.paymentMethodTitle, !paymentOptions.fiat && styles.paymentMethodTitleDisabled]}>Dinero tradicional</Text>
@@ -219,6 +351,7 @@ export default function CheckoutScreen() {
               ]}
               onPress={() => paymentOptions.mixed && setPaymentMethod('mixed')}
               disabled={!paymentOptions.mixed}
+              testID="payment-method-mixed"
             >
               <View style={styles.paymentMethodContent}>
                 <Text style={[styles.paymentMethodTitle, !paymentOptions.mixed && styles.paymentMethodTitleDisabled]}>Pago mixto</Text>
@@ -244,11 +377,19 @@ export default function CheckoutScreen() {
                   style={styles.mixedPaymentTextInput}
                   value={ncopAmount.toString()}
                   onChangeText={(text) => {
-                    const amount = parseFloat(text) || 0;
-                    setNcopAmount(Math.min(amount, Math.min(ncopBalance, cart.ncopTotal)));
+                    // Security: Validate and sanitize numeric input
+                    const sanitized = text.replace(/[^0-9.]/g, '');
+                    const amount = parseFloat(sanitized) || 0;
+                    const maxAmount = Math.min(ncopBalance, cart.ncopTotal);
+                    
+                    if (amount >= 0 && amount <= maxAmount) {
+                      setNcopAmount(amount);
+                    }
                   }}
                   keyboardType="numeric"
                   placeholder="0"
+                  maxLength={10}
+                  testID="mixed-payment-ncop-input"
                 />
                 <Text style={styles.mixedPaymentMax}>
                   Máx: {Math.min(ncopBalance, cart.ncopTotal).toFixed(2)}
@@ -337,6 +478,7 @@ export default function CheckoutScreen() {
           style={[styles.placeOrderButton, (isProcessing || processingPayment) && styles.placeOrderButtonDisabled]}
           onPress={handlePlaceOrder}
           disabled={isProcessing || processingPayment}
+          testID="place-order-button"
         >
           {(isProcessing || processingPayment) ? (
             <>
