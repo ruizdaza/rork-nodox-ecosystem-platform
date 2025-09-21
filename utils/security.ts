@@ -1,3 +1,398 @@
+import { User, Chat, ChatAction, ChatPermission, UserRole, PermissionRule } from '@/types/chat';
+
+// Reglas de permisos por rol y tipo de chat
+const PERMISSION_RULES: PermissionRule[] = [
+  // Administradores - Acceso completo
+  {
+    role: 'admin',
+    permissions: ['read', 'write', 'delete', 'moderate', 'admin'],
+    chatTypes: ['individual', 'group', 'support', 'ally_client'],
+  },
+  
+  // Aliados - Permisos específicos según el tipo de chat
+  {
+    role: 'ally',
+    permissions: ['read', 'write', 'delete', 'moderate'],
+    chatTypes: ['ally_client', 'support'],
+    conditions: {
+      isAlly: true,
+      allyStatus: ['approved', 'temp_approved'],
+    },
+  },
+  {
+    role: 'ally',
+    permissions: ['read', 'write'],
+    chatTypes: ['individual', 'group'],
+    conditions: {
+      isParticipant: true,
+      isAlly: true,
+      allyStatus: ['approved', 'temp_approved'],
+    },
+  },
+  
+  // Referidores - Permisos limitados
+  {
+    role: 'referrer',
+    permissions: ['read', 'write'],
+    chatTypes: ['individual', 'group', 'support'],
+    conditions: {
+      isParticipant: true,
+    },
+  },
+  
+  // Usuarios regulares - Permisos básicos
+  {
+    role: 'user',
+    permissions: ['read', 'write'],
+    chatTypes: ['individual', 'group', 'support'],
+    conditions: {
+      isParticipant: true,
+    },
+  },
+];
+
+// Validaciones de seguridad para chat
+export class ChatSecurityValidator {
+  private static instance: ChatSecurityValidator;
+  
+  static getInstance(): ChatSecurityValidator {
+    if (!ChatSecurityValidator.instance) {
+      ChatSecurityValidator.instance = new ChatSecurityValidator();
+    }
+    return ChatSecurityValidator.instance;
+  }
+  
+  // Validar si un usuario tiene un permiso específico en un chat
+  hasPermission(
+    user: User,
+    chat: Chat,
+    permission: ChatPermission,
+    targetUserId?: string
+  ): boolean {
+    console.log(`[Security] Checking permission '${permission}' for user ${user.id} in chat ${chat.id}`);
+    
+    // Verificar si el usuario está bloqueado
+    if (this.isUserBlocked(user, chat)) {
+      console.log(`[Security] User ${user.id} is blocked`);
+      return false;
+    }
+    
+    // Verificar reglas específicas del chat
+    if (!this.validateChatRules(user, chat, permission)) {
+      console.log(`[Security] Chat rules validation failed for user ${user.id}`);
+      return false;
+    }
+    
+    // Buscar reglas aplicables
+    const applicableRules = this.getApplicableRules(user, chat);
+    
+    for (const rule of applicableRules) {
+      if (rule.permissions.includes(permission)) {
+        // Verificar condiciones adicionales
+        if (this.validateRuleConditions(user, chat, rule, targetUserId)) {
+          console.log(`[Security] Permission '${permission}' granted via rule for role '${rule.role}'`);
+          return true;
+        }
+      }
+    }
+    
+    console.log(`[Security] Permission '${permission}' denied for user ${user.id}`);
+    return false;
+  }
+  
+  // Validar una acción específica del chat
+  validateAction(user: User, chat: Chat, action: ChatAction): boolean {
+    console.log(`[Security] Validating action '${action.type}' for user ${user.id}`);
+    
+    switch (action.type) {
+      case 'send_message':
+        return this.hasPermission(user, chat, 'write');
+        
+      case 'delete_message':
+        // Los usuarios pueden eliminar sus propios mensajes, moderadores pueden eliminar cualquiera
+        return action.userId === user.id || this.hasPermission(user, chat, 'moderate');
+        
+      case 'edit_message':
+        // Solo el autor puede editar sus mensajes
+        return action.userId === user.id && this.hasPermission(user, chat, 'write');
+        
+      case 'add_participant':
+      case 'remove_participant':
+        return this.hasPermission(user, chat, 'moderate');
+        
+      case 'moderate_chat':
+        return this.hasPermission(user, chat, 'moderate');
+        
+      case 'archive_chat':
+        return this.hasPermission(user, chat, 'admin') || 
+               (chat.type === 'individual' && chat.participants.includes(user.id));
+        
+      default:
+        console.log(`[Security] Unknown action type: ${action.type}`);
+        return false;
+    }
+  }
+  
+  // Verificar si un usuario está bloqueado
+  private isUserBlocked(user: User, chat: Chat): boolean {
+    if (user.isBlocked) return true;
+    
+    // Verificar si está bloqueado por algún participante del chat
+    if (user.blockedBy) {
+      const blockedByParticipant = chat.participants.some(participantId => 
+        user.blockedBy?.includes(participantId)
+      );
+      if (blockedByParticipant) return true;
+    }
+    
+    return false;
+  }
+  
+  // Validar reglas específicas del chat
+  private validateChatRules(user: User, chat: Chat, permission: ChatPermission): boolean {
+    const settings = chat.settings;
+    if (!settings) return true;
+    
+    // Si solo los admins pueden enviar mensajes
+    if (settings.onlyAdminsCanMessage && permission === 'write') {
+      return chat.admins?.includes(user.id) || user.roles.includes('admin');
+    }
+    
+    return true;
+  }
+  
+  // Obtener reglas aplicables para un usuario y chat
+  private getApplicableRules(user: User, chat: Chat): PermissionRule[] {
+    return PERMISSION_RULES.filter(rule => {
+      // Verificar si el usuario tiene el rol
+      if (!user.roles.includes(rule.role)) return false;
+      
+      // Verificar si la regla aplica al tipo de chat
+      if (!rule.chatTypes.includes(chat.type)) return false;
+      
+      return true;
+    });
+  }
+  
+  // Validar condiciones adicionales de una regla
+  private validateRuleConditions(
+    user: User,
+    chat: Chat,
+    rule: PermissionRule,
+    targetUserId?: string
+  ): boolean {
+    if (!rule.conditions) return true;
+    
+    const conditions = rule.conditions;
+    
+    // Verificar si debe ser participante
+    if (conditions.isParticipant && !chat.participants.includes(user.id)) {
+      return false;
+    }
+    
+    // Verificar si debe ser propietario (para chats individuales, ambos son "propietarios")
+    if (conditions.isOwner) {
+      if (chat.type === 'individual') {
+        return chat.participants.includes(user.id);
+      } else {
+        return chat.admins?.includes(user.id) || false;
+      }
+    }
+    
+    // Verificar condiciones de aliado
+    if (conditions.isAlly && !user.isAlly) {
+      return false;
+    }
+    
+    if (conditions.allyStatus && user.allyStatus) {
+      if (!conditions.allyStatus.includes(user.allyStatus)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+  
+  // Obtener permisos efectivos de un usuario en un chat
+  getUserPermissions(user: User, chat: Chat): ChatPermission[] {
+    const permissions: Set<ChatPermission> = new Set();
+    
+    if (this.isUserBlocked(user, chat)) {
+      return [];
+    }
+    
+    const applicableRules = this.getApplicableRules(user, chat);
+    
+    for (const rule of applicableRules) {
+      if (this.validateRuleConditions(user, chat, rule)) {
+        rule.permissions.forEach(permission => permissions.add(permission));
+      }
+    }
+    
+    return Array.from(permissions);
+  }
+  
+  // Validar contenido del mensaje
+  validateMessageContent(content: string, messageType: string): { isValid: boolean; reason?: string } {
+    // Validaciones básicas de contenido
+    if (!content || content.trim().length === 0) {
+      return { isValid: false, reason: 'El mensaje no puede estar vacío' };
+    }
+    
+    if (content.length > 4000) {
+      return { isValid: false, reason: 'El mensaje es demasiado largo (máximo 4000 caracteres)' };
+    }
+    
+    // Filtro básico de contenido inapropiado
+    const inappropriateWords = ['spam', 'scam', 'phishing']; // Lista básica
+    const lowerContent = content.toLowerCase();
+    
+    for (const word of inappropriateWords) {
+      if (lowerContent.includes(word)) {
+        return { isValid: false, reason: 'El mensaje contiene contenido inapropiado' };
+      }
+    }
+    
+    return { isValid: true };
+  }
+  
+  // Crear chat con validaciones de seguridad
+  canCreateChat(
+    creator: User,
+    chatType: Chat['type'],
+    participants: string[],
+    users: Record<string, User>
+  ): { canCreate: boolean; reason?: string } {
+    console.log(`[Security] Validating chat creation by user ${creator.id}`);
+    
+    // Verificar si el creador puede crear este tipo de chat
+    switch (chatType) {
+      case 'support':
+        if (!creator.roles.includes('admin') && !creator.roles.includes('ally')) {
+          return { canCreate: false, reason: 'No tienes permisos para crear chats de soporte' };
+        }
+        break;
+        
+      case 'ally_client':
+        if (!creator.isAlly || !['approved', 'temp_approved'].includes(creator.allyStatus || '')) {
+          return { canCreate: false, reason: 'Solo los aliados aprobados pueden crear chats con clientes' };
+        }
+        break;
+        
+      case 'group':
+        if (participants.length > 50) {
+          return { canCreate: false, reason: 'Los grupos no pueden tener más de 50 participantes' };
+        }
+        break;
+    }
+    
+    // Verificar que los participantes no estén bloqueados
+    for (const participantId of participants) {
+      const participant = users[participantId];
+      if (participant && this.isUserBlocked(participant, { participants } as Chat)) {
+        return { canCreate: false, reason: 'Uno o más participantes están bloqueados' };
+      }
+    }
+    
+    return { canCreate: true };
+  }
+}
+
+// Middleware de autorización para acciones de chat
+export const chatAuthMiddleware = {
+  // Middleware para envío de mensajes
+  validateSendMessage: (user: User, chat: Chat, content: string, messageType: string) => {
+    const validator = ChatSecurityValidator.getInstance();
+    
+    // Verificar permisos de escritura
+    if (!validator.hasPermission(user, chat, 'write')) {
+      throw new Error('No tienes permisos para enviar mensajes en este chat');
+    }
+    
+    // Validar contenido del mensaje
+    const contentValidation = validator.validateMessageContent(content, messageType);
+    if (!contentValidation.isValid) {
+      throw new Error(contentValidation.reason || 'Contenido del mensaje inválido');
+    }
+    
+    console.log(`[Auth] Message send validated for user ${user.id}`);
+    return true;
+  },
+  
+  // Middleware para eliminación de mensajes
+  validateDeleteMessage: (user: User, chat: Chat, messageAuthorId: string) => {
+    const validator = ChatSecurityValidator.getInstance();
+    
+    const action: ChatAction = {
+      type: 'delete_message',
+      chatId: chat.id,
+      userId: messageAuthorId,
+    };
+    
+    if (!validator.validateAction(user, chat, action)) {
+      throw new Error('No tienes permisos para eliminar este mensaje');
+    }
+    
+    console.log(`[Auth] Message deletion validated for user ${user.id}`);
+    return true;
+  },
+  
+  // Middleware para moderación de chat
+  validateModerateChat: (user: User, chat: Chat) => {
+    const validator = ChatSecurityValidator.getInstance();
+    
+    if (!validator.hasPermission(user, chat, 'moderate')) {
+      throw new Error('No tienes permisos de moderación en este chat');
+    }
+    
+    console.log(`[Auth] Chat moderation validated for user ${user.id}`);
+    return true;
+  },
+  
+  // Middleware para acceso a chat
+  validateChatAccess: (user: User, chat: Chat) => {
+    const validator = ChatSecurityValidator.getInstance();
+    
+    if (!validator.hasPermission(user, chat, 'read')) {
+      throw new Error('No tienes acceso a este chat');
+    }
+    
+    console.log(`[Auth] Chat access validated for user ${user.id}`);
+    return true;
+  },
+};
+
+// Utilidades de seguridad para chat
+export const chatSecurityUtils = {
+  // Sanitizar contenido de mensaje
+  sanitizeMessageContent: (content: string): string => {
+    return content
+      .trim()
+      .replace(/<script[^>]*>.*?<\/script>/gi, '') // Remover scripts
+      .replace(/<[^>]*>/g, '') // Remover HTML tags
+      .substring(0, 4000); // Limitar longitud
+  },
+  
+  // Generar ID seguro para mensajes
+  generateSecureMessageId: (): string => {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 15);
+    return `msg-${timestamp}-${random}`;
+  },
+  
+  // Validar formato de archivo
+  validateFileType: (fileName: string, allowedTypes: string[]): boolean => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    return extension ? allowedTypes.includes(extension) : false;
+  },
+  
+  // Validar tamaño de archivo
+  validateFileSize: (fileSize: number, maxSizeMB: number): boolean => {
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    return fileSize <= maxSizeBytes;
+  },
+};
+
 // Security validation utilities
 export const ValidationUtils = {
   // Sanitize text input to prevent XSS and injection attacks
@@ -280,3 +675,5 @@ export const ErrorUtils = {
     throw lastError;
   },
 };
+
+export default ChatSecurityValidator;

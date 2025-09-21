@@ -2,7 +2,8 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
-import { Chat, Message, User, Contact } from '@/types/chat';
+import { Chat, Message, User, Contact, ChatPermission, UserRole } from '@/types/chat';
+import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils } from '@/utils/security';
 
 const STORAGE_KEYS = {
   CHATS: 'nodox_chats',
@@ -20,6 +21,13 @@ const mockUsers: Record<string, User> = {
     phone: '+57 300 123 4567',
     email: 'soporte@nodox.com',
     isContact: true,
+    roles: ['admin'],
+    permissions: ['read', 'write', 'delete', 'moderate', 'admin'],
+    isAlly: false,
+    allyStatus: 'none',
+    isBlocked: false,
+    blockedBy: [],
+    blockedUsers: [],
   },
   'user-2': {
     id: 'user-2',
@@ -30,6 +38,13 @@ const mockUsers: Record<string, User> = {
     phone: '+57 301 234 5678',
     email: 'maria@example.com',
     isContact: true,
+    roles: ['user'],
+    permissions: ['read', 'write'],
+    isAlly: false,
+    allyStatus: 'none',
+    isBlocked: false,
+    blockedBy: [],
+    blockedUsers: [],
   },
   'user-3': {
     id: 'user-3',
@@ -39,6 +54,13 @@ const mockUsers: Record<string, User> = {
     phone: '+57 302 345 6789',
     email: 'carlos@example.com',
     isContact: true,
+    roles: ['ally'],
+    permissions: ['read', 'write', 'moderate'],
+    isAlly: true,
+    allyStatus: 'approved',
+    isBlocked: false,
+    blockedBy: [],
+    blockedUsers: [],
   },
   'user-4': {
     id: 'user-4',
@@ -49,19 +71,51 @@ const mockUsers: Record<string, User> = {
     phone: '+57 303 456 7890',
     email: 'ana@example.com',
     isContact: true,
+    roles: ['referrer'],
+    permissions: ['read', 'write'],
+    isAlly: false,
+    allyStatus: 'none',
+    isBlocked: false,
+    blockedBy: [],
+    blockedUsers: [],
   },
+};
+
+// Usuario actual con permisos de admin para pruebas
+const currentUser: User = {
+  id: 'current-user',
+  name: 'Usuario Actual',
+  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+  isOnline: true,
+  roles: ['admin'],
+  permissions: ['read', 'write', 'delete', 'moderate', 'admin'],
+  isAlly: false,
+  allyStatus: 'none',
+  isBlocked: false,
+  blockedBy: [],
+  blockedUsers: [],
+  isContact: false,
 };
 
 const mockChats: Chat[] = [
   {
     id: 'chat-1',
-    type: 'individual',
+    type: 'support',
     participants: ['current-user', 'user-1'],
+    admins: ['user-1'],
+    moderators: ['user-1'],
     unreadCount: 2,
     isArchived: false,
     isPinned: true,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
     updatedAt: new Date(Date.now() - 1000 * 60 * 5),
+    settings: {
+      allowFileSharing: true,
+      allowImageSharing: true,
+      allowAudioMessages: true,
+      requireApprovalToJoin: false,
+      onlyAdminsCanMessage: false,
+    },
     lastMessage: {
       id: 'msg-1',
       chatId: 'chat-1',
@@ -81,6 +135,13 @@ const mockChats: Chat[] = [
     isPinned: false,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48),
     updatedAt: new Date(Date.now() - 1000 * 60 * 60),
+    settings: {
+      allowFileSharing: true,
+      allowImageSharing: true,
+      allowAudioMessages: true,
+      requireApprovalToJoin: false,
+      onlyAdminsCanMessage: false,
+    },
     lastMessage: {
       id: 'msg-2',
       chatId: 'chat-2',
@@ -93,14 +154,23 @@ const mockChats: Chat[] = [
   },
   {
     id: 'chat-3',
-    type: 'group',
-    name: 'Comunidad NodoX',
-    participants: ['current-user', 'user-2', 'user-3', 'user-4'],
+    type: 'ally_client',
+    name: 'Chat Aliado - Carlos',
+    participants: ['current-user', 'user-3'],
+    admins: ['user-3'],
+    moderators: ['user-3'],
     unreadCount: 5,
     isArchived: false,
     isPinned: false,
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72),
     updatedAt: new Date(Date.now() - 1000 * 60 * 15),
+    settings: {
+      allowFileSharing: true,
+      allowImageSharing: true,
+      allowAudioMessages: true,
+      requireApprovalToJoin: true,
+      onlyAdminsCanMessage: false,
+    },
     lastMessage: {
       id: 'msg-3',
       chatId: 'chat-3',
@@ -412,15 +482,34 @@ export const [ChatProvider, useChat] = createContextHook(() => {
   const sendMessage = useCallback(async (chatId: string, content: string, type: Message['type'] = 'text') => {
     const currentMessages = messagesQuery.data || {};
     const currentChats = chatsQuery.data || [];
+    const currentUsers = usersQuery.data || {};
+    
+    const chat = currentChats.find(c => c.id === chatId);
+    if (!chat) {
+      throw new Error('Chat no encontrado');
+    }
+    
+    // Validar permisos usando el middleware de seguridad
+    try {
+      chatAuthMiddleware.validateSendMessage(currentUser, chat, content, type);
+    } catch (error) {
+      console.error('[Chat] Send message validation failed:', error);
+      throw error;
+    }
+    
+    // Sanitizar contenido del mensaje
+    const sanitizedContent = chatSecurityUtils.sanitizeMessageContent(content);
     
     const newMessage: Message = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: chatSecurityUtils.generateSecureMessageId(),
       chatId,
       senderId: 'current-user',
-      content,
+      content: sanitizedContent,
       type,
       timestamp: new Date(),
       isRead: false,
+      isDeleted: false,
+      isEdited: false,
     };
 
     const updatedMessages = {
@@ -438,7 +527,9 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       saveMessagesAsync(updatedMessages),
       saveChatsAsync(updatedChats),
     ]);
-  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
+    
+    console.log('[Chat] Message sent successfully with security validation');
+  }, [messagesQuery.data, chatsQuery.data, usersQuery.data, saveMessagesAsync, saveChatsAsync]);
 
   const markAsRead = useCallback(async (chatId: string) => {
     const currentMessages = messagesQuery.data || {};
@@ -498,6 +589,13 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       avatar: contactData.avatar,
       isOnline: false,
       isContact: true,
+      roles: ['user'],
+      permissions: ['read', 'write'],
+      isAlly: false,
+      allyStatus: 'none',
+      isBlocked: false,
+      blockedBy: [],
+      blockedUsers: [],
     };
     
     const newContact: Contact = {
@@ -531,6 +629,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
 
   const startChatWithContact = useCallback(async (userId: string): Promise<string> => {
     const currentChats = chatsQuery.data || [];
+    const currentUsers = usersQuery.data || {};
     
     const existingChat = currentChats.find(chat => 
       chat.type === 'individual' && 
@@ -539,8 +638,28 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     );
     
     if (existingChat) {
-      setActiveChat(existingChat.id);
-      return existingChat.id;
+      // Validar acceso al chat existente
+      try {
+        chatAuthMiddleware.validateChatAccess(currentUser, existingChat);
+        setActiveChat(existingChat.id);
+        return existingChat.id;
+      } catch (error) {
+        console.error('[Chat] Access denied to existing chat:', error);
+        throw error;
+      }
+    }
+    
+    // Validar creación de nuevo chat
+    const validator = ChatSecurityValidator.getInstance();
+    const canCreate = validator.canCreateChat(
+      currentUser,
+      'individual',
+      ['current-user', userId],
+      { ...currentUsers, 'current-user': currentUser }
+    );
+    
+    if (!canCreate.canCreate) {
+      throw new Error(canCreate.reason || 'No se puede crear el chat');
     }
     
     const newChatId = `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -553,19 +672,116 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       isPinned: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      settings: {
+        allowFileSharing: true,
+        allowImageSharing: true,
+        allowAudioMessages: true,
+        requireApprovalToJoin: false,
+        onlyAdminsCanMessage: false,
+      },
     };
     
     const updatedChats = [...currentChats, newChat];
     await saveChatsAsync(updatedChats);
     
     setActiveChat(newChatId);
+    console.log('[Chat] New chat created with security validation');
     return newChatId;
-  }, [chatsQuery.data, saveChatsAsync, setActiveChat]);
+  }, [chatsQuery.data, usersQuery.data, saveChatsAsync, setActiveChat]);
+
+  // Funciones de seguridad y permisos
+  const deleteMessage = useCallback(async (messageId: string, chatId: string) => {
+    const currentMessages = messagesQuery.data || {};
+    const currentChats = chatsQuery.data || [];
+    
+    const chat = currentChats.find(c => c.id === chatId);
+    const message = currentMessages[chatId]?.find(m => m.id === messageId);
+    
+    if (!chat || !message) {
+      throw new Error('Chat o mensaje no encontrado');
+    }
+    
+    // Validar permisos de eliminación
+    try {
+      chatAuthMiddleware.validateDeleteMessage(currentUser, chat, message.senderId);
+    } catch (error) {
+      console.error('[Chat] Delete message validation failed:', error);
+      throw error;
+    }
+    
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: currentMessages[chatId].map(msg => 
+        msg.id === messageId 
+          ? { ...msg, isDeleted: true, deletedBy: currentUser.id, deletedAt: new Date() }
+          : msg
+      ),
+    };
+    
+    await saveMessagesAsync(updatedMessages);
+    console.log('[Chat] Message deleted with security validation');
+  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync]);
+  
+  const getUserPermissions = useCallback((chatId: string): ChatPermission[] => {
+    const chat = (chatsQuery.data || []).find(c => c.id === chatId);
+    if (!chat) return [];
+    
+    const validator = ChatSecurityValidator.getInstance();
+    return validator.getUserPermissions(currentUser, chat);
+  }, [chatsQuery.data]);
+  
+  const canPerformAction = useCallback((chatId: string, permission: ChatPermission): boolean => {
+    const chat = (chatsQuery.data || []).find(c => c.id === chatId);
+    if (!chat) return false;
+    
+    const validator = ChatSecurityValidator.getInstance();
+    return validator.hasPermission(currentUser, chat, permission);
+  }, [chatsQuery.data]);
+  
+  const blockUser = useCallback(async (userId: string) => {
+    const currentUsers = usersQuery.data || {};
+    const updatedCurrentUser = {
+      ...currentUser,
+      blockedUsers: [...(currentUser.blockedUsers || []), userId],
+    };
+    
+    const updatedUsers = {
+      ...currentUsers,
+      'current-user': updatedCurrentUser,
+      [userId]: {
+        ...currentUsers[userId],
+        blockedBy: [...(currentUsers[userId]?.blockedBy || []), 'current-user'],
+      },
+    };
+    
+    await saveUsersAsync(updatedUsers);
+    console.log('[Chat] User blocked:', userId);
+  }, [usersQuery.data, saveUsersAsync]);
+  
+  const unblockUser = useCallback(async (userId: string) => {
+    const currentUsers = usersQuery.data || {};
+    const updatedCurrentUser = {
+      ...currentUser,
+      blockedUsers: (currentUser.blockedUsers || []).filter(id => id !== userId),
+    };
+    
+    const updatedUsers = {
+      ...currentUsers,
+      'current-user': updatedCurrentUser,
+      [userId]: {
+        ...currentUsers[userId],
+        blockedBy: (currentUsers[userId]?.blockedBy || []).filter(id => id !== 'current-user'),
+      },
+    };
+    
+    await saveUsersAsync(updatedUsers);
+    console.log('[Chat] User unblocked:', userId);
+  }, [usersQuery.data, saveUsersAsync]);
 
   return useMemo(() => ({
     chats: chatsQuery.data || [],
     messages: messagesQuery.data || {},
-    users: usersQuery.data || {},
+    users: { ...usersQuery.data || {}, 'current-user': currentUser },
     contacts: contactsQuery.data || [],
     activeChat,
     setActiveChat,
@@ -578,6 +794,12 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     addContact,
     toggleFavoriteContact,
     startChatWithContact,
+    deleteMessage,
+    getUserPermissions,
+    canPerformAction,
+    blockUser,
+    unblockUser,
+    currentUser,
     isLoading: chatsQuery.isLoading || messagesQuery.isLoading || usersQuery.isLoading || contactsQuery.isLoading,
     currentUserId: 'current-user',
   }), [
@@ -596,6 +818,11 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     addContact,
     toggleFavoriteContact,
     startChatWithContact,
+    deleteMessage,
+    getUserPermissions,
+    canPerformAction,
+    blockUser,
+    unblockUser,
     chatsQuery.isLoading,
     messagesQuery.isLoading,
     usersQuery.isLoading,
