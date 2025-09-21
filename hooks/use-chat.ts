@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
 import { Chat, Message, User, Contact, ChatPermission, UserRole } from '@/types/chat';
-import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils } from '@/utils/security';
+import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils, InputValidator, ValidationUtils } from '@/utils/security';
 
 const STORAGE_KEYS = {
   CHATS: 'nodox_chats',

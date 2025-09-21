@@ -393,6 +393,239 @@ export const chatSecurityUtils = {
   },
 };
 
+// Enhanced Input Validation System
+export class InputValidator {
+  private static instance: InputValidator;
+  
+  static getInstance(): InputValidator {
+    if (!InputValidator.instance) {
+      InputValidator.instance = new InputValidator();
+    }
+    return InputValidator.instance;
+  }
+  
+  // SQL Injection prevention patterns
+  private sqlInjectionPatterns = [
+    /('|(\-\-)|(;)|(\||\|)|(\*|\*))/i,
+    /(union|select|insert|delete|update|drop|create|alter|exec|execute)/i,
+    /(script|javascript|vbscript|onload|onerror|onclick)/i,
+  ];
+  
+  // XSS prevention patterns
+  private xssPatterns = [
+    /<script[^>]*>.*?<\/script>/gi,
+    /<iframe[^>]*>.*?<\/iframe>/gi,
+    /<object[^>]*>.*?<\/object>/gi,
+    /<embed[^>]*>.*?<\/embed>/gi,
+    /javascript:/gi,
+    /vbscript:/gi,
+    /on\w+\s*=/gi,
+  ];
+  
+  // Comprehensive input sanitization
+  sanitizeInput(input: any, options: {
+    type: 'text' | 'html' | 'numeric' | 'email' | 'phone' | 'url';
+    maxLength?: number;
+    allowHtml?: boolean;
+    strictMode?: boolean;
+  }): { sanitized: string; isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    let sanitized = '';
+    
+    // Type validation
+    if (typeof input !== 'string') {
+      if (input === null || input === undefined) {
+        return { sanitized: '', isValid: false, errors: ['Campo requerido'] };
+      }
+      input = String(input);
+    }
+    
+    // Basic sanitization
+    sanitized = input.trim();
+    
+    // Length validation
+    const maxLength = options.maxLength || 1000;
+    if (sanitized.length > maxLength) {
+      sanitized = sanitized.substring(0, maxLength);
+      errors.push(`Texto truncado a ${maxLength} caracteres`);
+    }
+    
+    // SQL Injection detection
+    if (options.strictMode !== false) {
+      for (const pattern of this.sqlInjectionPatterns) {
+        if (pattern.test(sanitized)) {
+          errors.push('Contenido potencialmente peligroso detectado');
+          ValidationUtils.logSecurityEvent('SQL_INJECTION_ATTEMPT', { input: sanitized });
+          break;
+        }
+      }
+    }
+    
+    // XSS prevention
+    if (!options.allowHtml) {
+      for (const pattern of this.xssPatterns) {
+        if (pattern.test(sanitized)) {
+          sanitized = sanitized.replace(pattern, '');
+          errors.push('Contenido HTML/JavaScript removido por seguridad');
+          ValidationUtils.logSecurityEvent('XSS_ATTEMPT', { input: sanitized });
+        }
+      }
+    }
+    
+    // Type-specific validation
+    switch (options.type) {
+      case 'text':
+        sanitized = this.sanitizeText(sanitized);
+        break;
+      case 'numeric':
+        const numResult = this.sanitizeNumeric(sanitized);
+        sanitized = numResult.toString();
+        if (isNaN(numResult)) {
+          errors.push('Valor numérico inválido');
+        }
+        break;
+      case 'email':
+        if (!this.validateEmail(sanitized)) {
+          errors.push('Formato de email inválido');
+        }
+        break;
+      case 'phone':
+        if (!this.validatePhone(sanitized)) {
+          errors.push('Formato de teléfono inválido');
+        }
+        break;
+      case 'url':
+        if (!this.validateUrl(sanitized)) {
+          errors.push('URL inválida');
+        }
+        break;
+    }
+    
+    return {
+      sanitized,
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+  
+  // Enhanced text sanitization
+  private sanitizeText(input: string): string {
+    return input
+      .replace(/[<>"'&]/g, (match) => {
+        const entities: Record<string, string> = {
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#x27;',
+          '&': '&amp;'
+        };
+        return entities[match] || match;
+      })
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  
+  // Enhanced numeric sanitization
+  private sanitizeNumeric(input: string): number {
+    const cleaned = input.replace(/[^0-9.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  }
+  
+  // URL validation
+  private validateUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      return ['http:', 'https:'].includes(urlObj.protocol);
+    } catch {
+      return false;
+    }
+  }
+  
+  // Enhanced email validation
+  private validateEmail(email: string): boolean {
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    return emailRegex.test(email) && email.length <= 254;
+  }
+  
+  // Enhanced phone validation
+  private validatePhone(phone: string): boolean {
+    const cleaned = phone.replace(/[^0-9+]/g, '');
+    return /^\+?[1-9]\d{6,14}$/.test(cleaned);
+  }
+  
+  // Batch validation for forms
+  validateForm(formData: Record<string, any>, validationRules: Record<string, {
+    type: 'text' | 'html' | 'numeric' | 'email' | 'phone' | 'url';
+    required?: boolean;
+    maxLength?: number;
+    minLength?: number;
+    pattern?: RegExp;
+    custom?: (value: any) => { valid: boolean; error?: string };
+  }>): { isValid: boolean; errors: Record<string, string[]>; sanitized: Record<string, any> } {
+    const errors: Record<string, string[]> = {};
+    const sanitized: Record<string, any> = {};
+    let isValid = true;
+    
+    for (const [field, rules] of Object.entries(validationRules)) {
+      const value = formData[field];
+      const fieldErrors: string[] = [];
+      
+      // Required field validation
+      if (rules.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
+        fieldErrors.push('Este campo es requerido');
+        isValid = false;
+        continue;
+      }
+      
+      if (value) {
+        // Sanitize input
+        const sanitizationResult = this.sanitizeInput(value, {
+          type: rules.type,
+          maxLength: rules.maxLength,
+          strictMode: true
+        });
+        
+        sanitized[field] = sanitizationResult.sanitized;
+        fieldErrors.push(...sanitizationResult.errors);
+        
+        if (!sanitizationResult.isValid) {
+          isValid = false;
+        }
+        
+        // Length validation
+        if (rules.minLength && sanitizationResult.sanitized.length < rules.minLength) {
+          fieldErrors.push(`Mínimo ${rules.minLength} caracteres`);
+          isValid = false;
+        }
+        
+        // Pattern validation
+        if (rules.pattern && !rules.pattern.test(sanitizationResult.sanitized)) {
+          fieldErrors.push('Formato inválido');
+          isValid = false;
+        }
+        
+        // Custom validation
+        if (rules.custom) {
+          const customResult = rules.custom(sanitizationResult.sanitized);
+          if (!customResult.valid) {
+            fieldErrors.push(customResult.error || 'Validación personalizada falló');
+            isValid = false;
+          }
+        }
+      } else {
+        sanitized[field] = '';
+      }
+      
+      if (fieldErrors.length > 0) {
+        errors[field] = fieldErrors;
+      }
+    }
+    
+    return { isValid, errors, sanitized };
+  }
+}
+
 // Security validation utilities
 export const ValidationUtils = {
   // Sanitize text input to prevent XSS and injection attacks
@@ -404,11 +637,26 @@ export const ValidationUtils = {
       .slice(0, maxLength);
   },
 
-  // Validate and sanitize numeric input
+  // Validate and sanitize numeric input with enhanced security
   sanitizeNumeric: (input: string, min: number = 0, max: number = Number.MAX_SAFE_INTEGER): number => {
     if (typeof input !== 'string') return 0;
-    const sanitized = input.replace(/[^0-9.]/g, '');
+    
+    // Remove potentially dangerous characters
+    const sanitized = input.replace(/[^0-9.-]/g, '');
+    
+    // Prevent scientific notation and other edge cases
+    if (sanitized.includes('e') || sanitized.includes('E')) {
+      ValidationUtils.logSecurityEvent('NUMERIC_INJECTION_ATTEMPT', { input });
+      return 0;
+    }
+    
     const num = parseFloat(sanitized) || 0;
+    
+    // Additional bounds checking
+    if (!isFinite(num) || isNaN(num)) {
+      return 0;
+    }
+    
     return Math.max(min, Math.min(max, num));
   },
 
@@ -484,22 +732,43 @@ export const ValidationUtils = {
     };
   },
 
-  // Validate payment amounts
-  validatePaymentAmount: (amount: number, balance: number): { valid: boolean; error?: string } => {
-    if (typeof amount !== 'number' || isNaN(amount)) {
+  // Enhanced payment amount validation with security checks
+  validatePaymentAmount: (amount: number, balance: number, userId?: string): { valid: boolean; error?: string } => {
+    // Type and basic validation
+    if (typeof amount !== 'number' || isNaN(amount) || !isFinite(amount)) {
+      ValidationUtils.logSecurityEvent('INVALID_PAYMENT_AMOUNT', { amount, userId });
       return { valid: false, error: 'Cantidad inválida' };
     }
     
+    // Precision check (prevent floating point manipulation)
+    const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+    if (decimalPlaces > 2) {
+      return { valid: false, error: 'Máximo 2 decimales permitidos' };
+    }
+    
+    // Range validation
     if (amount <= 0) {
       return { valid: false, error: 'La cantidad debe ser mayor a cero' };
     }
     
+    if (amount < 100) { // Minimum transaction
+      return { valid: false, error: 'Cantidad mínima: $100' };
+    }
+    
     if (amount > balance) {
+      ValidationUtils.logSecurityEvent('INSUFFICIENT_BALANCE_ATTEMPT', { amount, balance, userId });
       return { valid: false, error: 'Saldo insuficiente' };
     }
     
-    if (amount > 1000000) { // Max transaction limit
-      return { valid: false, error: 'Cantidad excede el límite máximo' };
+    // Daily/transaction limits
+    if (amount > 1000000) {
+      ValidationUtils.logSecurityEvent('EXCESSIVE_AMOUNT_ATTEMPT', { amount, userId });
+      return { valid: false, error: 'Cantidad excede el límite máximo ($1,000,000)' };
+    }
+    
+    // Suspicious amount patterns
+    if (amount === 999999 || amount === 1000000 || amount.toString().match(/^(1|9)+$/)) {
+      ValidationUtils.logSecurityEvent('SUSPICIOUS_AMOUNT_PATTERN', { amount, userId });
     }
     
     return { valid: true };
@@ -556,21 +825,139 @@ export const ValidationUtils = {
     return result;
   },
 
-  // Log security events
+  // Enhanced security event logging with threat classification
   logSecurityEvent: (event: string, details: any = {}) => {
     const timestamp = new Date().toISOString();
+    const severity = ValidationUtils.classifyThreatLevel(event);
+    
     const logEntry = {
       timestamp,
       event,
+      severity,
       details: typeof details === 'object' ? details : { message: details },
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      sessionId: ValidationUtils.getSessionId(),
+      ipHash: ValidationUtils.getIpHash(),
     };
     
-    console.warn('[SECURITY]', logEntry);
+    // Log based on severity
+    if (severity === 'critical') {
+      console.error('[SECURITY CRITICAL]', logEntry);
+    } else if (severity === 'high') {
+      console.warn('[SECURITY HIGH]', logEntry);
+    } else {
+      console.info('[SECURITY]', logEntry);
+    }
     
-    // In production, send to monitoring service
-    if (!__DEV__) {
-      // sendToMonitoringService(logEntry);
+    // Store in local security log for pattern analysis
+    ValidationUtils.storeSecurityEvent(logEntry);
+    
+    // In production, send to monitoring service immediately for high/critical
+    if (!__DEV__ && ['high', 'critical'].includes(severity)) {
+      // sendToSecurityMonitoring(logEntry);
+    }
+  },
+  
+  // Classify threat level based on event type
+  classifyThreatLevel: (event: string): 'low' | 'medium' | 'high' | 'critical' => {
+    const criticalEvents = ['SQL_INJECTION_ATTEMPT', 'XSS_ATTEMPT', 'PRIVILEGE_ESCALATION'];
+    const highEvents = ['EXCESSIVE_AMOUNT_ATTEMPT', 'BRUTE_FORCE_ATTEMPT', 'SUSPICIOUS_PATTERN'];
+    const mediumEvents = ['INVALID_PAYMENT_AMOUNT', 'RATE_LIMIT_EXCEEDED', 'UNAUTHORIZED_ACCESS'];
+    
+    if (criticalEvents.some(e => event.includes(e))) return 'critical';
+    if (highEvents.some(e => event.includes(e))) return 'high';
+    if (mediumEvents.some(e => event.includes(e))) return 'medium';
+    return 'low';
+  },
+  
+  // Get or generate session ID
+  getSessionId: (): string => {
+    if (typeof window !== 'undefined') {
+      let sessionId = sessionStorage.getItem('nodox_session_id');
+      if (!sessionId) {
+        sessionId = ValidationUtils.generateSecureId(32);
+        sessionStorage.setItem('nodox_session_id', sessionId);
+      }
+      return sessionId;
+    }
+    return 'server-session';
+  },
+  
+  // Get hashed IP (privacy-preserving)
+  getIpHash: (): string => {
+    // In a real app, this would be provided by the backend
+    return 'ip-hash-placeholder';
+  },
+  
+  // Store security events locally for pattern analysis
+  storeSecurityEvent: (event: any) => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const key = 'nodox_security_events';
+        const stored = localStorage.getItem(key);
+        const events = stored ? JSON.parse(stored) : [];
+        
+        events.push(event);
+        
+        // Keep only last 100 events
+        if (events.length > 100) {
+          events.splice(0, events.length - 100);
+        }
+        
+        localStorage.setItem(key, JSON.stringify(events));
+      }
+    } catch (error) {
+      console.error('Failed to store security event:', error);
+    }
+  },
+  
+  // Analyze security patterns
+  analyzeSecurityPatterns: (): { suspiciousActivity: boolean; recommendations: string[] } => {
+    try {
+      if (typeof localStorage === 'undefined') {
+        return { suspiciousActivity: false, recommendations: [] };
+      }
+      
+      const stored = localStorage.getItem('nodox_security_events');
+      if (!stored) {
+        return { suspiciousActivity: false, recommendations: [] };
+      }
+      
+      const events = JSON.parse(stored);
+      const recentEvents = events.filter((e: any) => {
+        const eventTime = new Date(e.timestamp).getTime();
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        return eventTime > oneHourAgo;
+      });
+      
+      const recommendations: string[] = [];
+      let suspiciousActivity = false;
+      
+      // Check for repeated security events
+      if (recentEvents.length > 10) {
+        suspiciousActivity = true;
+        recommendations.push('Actividad de seguridad elevada detectada');
+      }
+      
+      // Check for critical events
+      const criticalEvents = recentEvents.filter((e: any) => e.severity === 'critical');
+      if (criticalEvents.length > 0) {
+        suspiciousActivity = true;
+        recommendations.push('Eventos críticos de seguridad detectados');
+      }
+      
+      // Check for patterns
+      const eventTypes = recentEvents.map((e: any) => e.event);
+      const uniqueTypes = new Set(eventTypes);
+      if (eventTypes.length > uniqueTypes.size * 3) {
+        suspiciousActivity = true;
+        recommendations.push('Patrón de eventos repetitivos detectado');
+      }
+      
+      return { suspiciousActivity, recommendations };
+    } catch (error) {
+      console.error('Failed to analyze security patterns:', error);
+      return { suspiciousActivity: false, recommendations: [] };
     }
   },
 };

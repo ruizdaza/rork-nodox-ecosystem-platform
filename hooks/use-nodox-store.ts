@@ -1,7 +1,8 @@
 import createContextHook from "@nkzw/create-context-hook";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gift, ShoppingBag, Users, TrendingUp } from "lucide-react-native";
+import { InputValidator, ValidationUtils, ErrorUtils } from '@/utils/security';
 
 interface User {
   id: string;
