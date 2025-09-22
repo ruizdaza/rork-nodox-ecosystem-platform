@@ -104,3 +104,91 @@ export interface PermissionRule {
     allyStatus?: string[];
   };
 }
+
+export interface ChatSecurityConfig {
+  enableSpamDetection: boolean;
+  enableProfanityFilter: boolean;
+  enableRateLimiting: boolean;
+  maxMessagesPerMinute: number;
+  enableEncryption: boolean;
+  enableMessageValidation: boolean;
+  enableModerationLogging: boolean;
+  autoDeleteViolations: boolean;
+  requireApprovalForNewUsers: boolean;
+  enableImageModeration: boolean;
+}
+
+export interface Report {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  reportedUserId: string;
+  reportedUserName: string;
+  messageId?: string;
+  conversationId: string;
+  type: 'spam' | 'harassment' | 'inappropriate' | 'fake_profile' | 'scam' | 'other';
+  reason: string;
+  description?: string;
+  status: 'pending' | 'investigating' | 'resolved' | 'dismissed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedTo?: string;
+  evidence?: {
+    screenshots?: string[];
+    messageContent?: string;
+    additionalInfo?: string;
+  };
+  actions?: {
+    type: 'warning' | 'temporary_ban' | 'permanent_ban' | 'content_removal' | 'no_action';
+    duration?: number; // in hours
+    reason: string;
+    executedBy: string;
+    executedAt: Date;
+  }[];
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt?: Date;
+}
+
+export interface AdminStats {
+  totalUsers: number;
+  activeUsers: number;
+  totalConversations: number;
+  activeConversations: number;
+  totalMessages: number;
+  messagesLast24h: number;
+  messagesLast7d: number;
+  messagesLast30d: number;
+  reportStats: {
+    total: number;
+    pending: number;
+    resolved: number;
+    dismissed: number;
+    byType: Record<string, number>;
+    byPriority: Record<string, number>;
+  };
+  moderationStats: {
+    totalViolations: number;
+    spamDetected: number;
+    profanityFiltered: number;
+    messagesBlocked: number;
+    usersWarned: number;
+    usersBanned: number;
+  };
+  performanceStats: {
+    averageResponseTime: number;
+    messageDeliveryRate: number;
+    systemUptime: number;
+    errorRate: number;
+  };
+}
+
+export interface UserActivity {
+  userId: string;
+  userName: string;
+  lastActive: Date;
+  messageCount: number;
+  reportCount: number;
+  violationCount: number;
+  status: 'active' | 'warned' | 'suspended' | 'banned';
+  riskScore: number; // 0-100
+}
