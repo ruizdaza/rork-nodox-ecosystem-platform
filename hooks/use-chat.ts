@@ -482,7 +482,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
   const sendMessage = useCallback(async (chatId: string, content: string, type: Message['type'] = 'text') => {
     const currentMessages = messagesQuery.data || {};
     const currentChats = chatsQuery.data || [];
-    const currentUsers = usersQuery.data || {};
+    // const currentUsers = usersQuery.data || {};
     
     const chat = currentChats.find(c => c.id === chatId);
     if (!chat) {
@@ -490,15 +490,19 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     }
     
     // Validar permisos usando el middleware de seguridad
+    let validationResult;
     try {
-      chatAuthMiddleware.validateSendMessage(currentUser, chat, content, type);
+      validationResult = chatAuthMiddleware.validateSendMessage(currentUser, chat, content, type);
     } catch (error) {
       console.error('[Chat] Send message validation failed:', error);
       throw error;
     }
     
-    // Sanitizar contenido del mensaje
-    const sanitizedContent = chatSecurityUtils.sanitizeMessageContent(content);
+    // Usar contenido filtrado si está disponible
+    const finalContent = validationResult.filteredContent || content;
+    
+    // Sanitizar contenido del mensaje con moderación
+    const sanitizedContent = chatSecurityUtils.sanitizeMessageContent(finalContent, 'current-user', chat.type);
     
     const newMessage: Message = {
       id: chatSecurityUtils.generateSecureMessageId(),
@@ -529,7 +533,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     ]);
     
     console.log('[Chat] Message sent successfully with security validation');
-  }, [messagesQuery.data, chatsQuery.data, usersQuery.data, saveMessagesAsync, saveChatsAsync]);
+  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
 
   const markAsRead = useCallback(async (chatId: string) => {
     const currentMessages = messagesQuery.data || {};

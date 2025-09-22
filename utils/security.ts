@@ -1,5 +1,360 @@
 import { User, Chat, ChatAction, ChatPermission, UserRole, PermissionRule } from '@/types/chat';
 
+// Sistema de Moderación de Contenido
+export interface ModerationRule {
+  id: string;
+  name: string;
+  type: 'spam' | 'profanity' | 'harassment' | 'inappropriate' | 'phishing' | 'custom';
+  pattern?: RegExp;
+  keywords?: string[];
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  action: 'warn' | 'filter' | 'block' | 'report' | 'auto_delete';
+  enabled: boolean;
+  description: string;
+}
+
+export interface ModerationResult {
+  isAllowed: boolean;
+  violations: {
+    ruleId: string;
+    ruleName: string;
+    type: string;
+    severity: string;
+    action: string;
+    matchedContent?: string;
+  }[];
+  filteredContent?: string;
+  requiresReview: boolean;
+  autoAction?: 'delete' | 'block_user' | 'report_admin';
+}
+
+export interface ModerationStats {
+  totalMessages: number;
+  blockedMessages: number;
+  filteredMessages: number;
+  reportedMessages: number;
+  spamDetected: number;
+  profanityDetected: number;
+  lastUpdated: Date;
+}
+
+export class ContentModerator {
+  private static instance: ContentModerator;
+  private moderationRules: ModerationRule[];
+  private stats: ModerationStats;
+  private userViolations: Record<string, { count: number; lastViolation: Date; violations: string[] }>;
+
+  private constructor() {
+    this.moderationRules = this.initializeModerationRules();
+    this.stats = this.initializeStats();
+    this.userViolations = {};
+  }
+
+  public static getInstance(): ContentModerator {
+    if (!ContentModerator.instance) {
+      ContentModerator.instance = new ContentModerator();
+    }
+    return ContentModerator.instance;
+  }
+
+  private initializeModerationRules(): ModerationRule[] {
+    return [
+      {
+        id: 'spam-detection',
+        name: 'Detección de Spam',
+        type: 'spam',
+        pattern: /(.{1,50})\1{3,}/gi, // Texto repetitivo
+        severity: 'medium',
+        action: 'filter',
+        enabled: true,
+        description: 'Detecta mensajes con contenido repetitivo o spam'
+      },
+      {
+        id: 'profanity-filter',
+        name: 'Filtro de Profanidad',
+        type: 'profanity',
+        keywords: [
+          'maldito', 'idiota', 'estúpido', 'imbécil', 'pendejo', 'cabrón',
+          'puto', 'puta', 'joder', 'mierda', 'coño', 'carajo'
+        ],
+        severity: 'medium',
+        action: 'filter',
+        enabled: true,
+        description: 'Filtra palabras ofensivas y profanidad'
+      },
+      {
+        id: 'harassment-detection',
+        name: 'Detección de Acoso',
+        type: 'harassment',
+        keywords: [
+          'te voy a matar', 'voy a encontrarte', 'eres una basura',
+          'no vales nada', 'deberías morirte', 'te odio'
+        ],
+        severity: 'high',
+        action: 'block',
+        enabled: true,
+        description: 'Detecta mensajes de acoso o amenazas'
+      },
+      {
+        id: 'phishing-detection',
+        name: 'Detección de Phishing',
+        type: 'phishing',
+        pattern: /(haz\s+clic\s+aquí|click\s+here|gana\s+dinero\s+fácil|premio\s+gratis|oferta\s+limitada)/gi,
+        severity: 'high',
+        action: 'block',
+        enabled: true,
+        description: 'Detecta intentos de phishing y estafas'
+      },
+      {
+        id: 'excessive-caps',
+        name: 'Mayúsculas Excesivas',
+        type: 'spam',
+        pattern: /^[A-Z\s!?]{20,}$/,
+        severity: 'low',
+        action: 'warn',
+        enabled: true,
+        description: 'Detecta mensajes con exceso de mayúsculas'
+      },
+      {
+        id: 'url-spam',
+        name: 'Spam de URLs',
+        type: 'spam',
+        pattern: /(https?:\/\/[^\s]+){3,}/gi,
+        severity: 'medium',
+        action: 'filter',
+        enabled: true,
+        description: 'Detecta mensajes con múltiples URLs sospechosas'
+      },
+      {
+        id: 'personal-info',
+        name: 'Información Personal',
+        type: 'inappropriate',
+        pattern: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g,
+        severity: 'medium',
+        action: 'filter',
+        enabled: true,
+        description: 'Detecta números de tarjetas de crédito o documentos'
+      }
+    ];
+  }
+
+  private initializeStats(): ModerationStats {
+    return {
+      totalMessages: 0,
+      blockedMessages: 0,
+      filteredMessages: 0,
+      reportedMessages: 0,
+      spamDetected: 0,
+      profanityDetected: 0,
+      lastUpdated: new Date()
+    };
+  }
+
+  public moderateContent(content: string, userId: string, chatType: Chat['type']): ModerationResult {
+    const result: ModerationResult = {
+      isAllowed: true,
+      violations: [],
+      requiresReview: false
+    };
+
+    let filteredContent = content;
+    this.stats.totalMessages++;
+
+    // Aplicar reglas de moderación
+    for (const rule of this.moderationRules) {
+      if (!rule.enabled) continue;
+
+      let hasViolation = false;
+      let matchedContent = '';
+
+      // Verificar patrones regex
+      if (rule.pattern) {
+        const matches = content.match(rule.pattern);
+        if (matches) {
+          hasViolation = true;
+          matchedContent = matches[0];
+        }
+      }
+
+      // Verificar palabras clave
+      if (rule.keywords) {
+        const lowerContent = content.toLowerCase();
+        for (const keyword of rule.keywords) {
+          if (lowerContent.includes(keyword.toLowerCase())) {
+            hasViolation = true;
+            matchedContent = keyword;
+            break;
+          }
+        }
+      }
+
+      if (hasViolation) {
+        result.violations.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          type: rule.type,
+          severity: rule.severity,
+          action: rule.action,
+          matchedContent
+        });
+
+        // Aplicar acciones según la regla
+        switch (rule.action) {
+          case 'warn':
+            // Solo advertir, permitir el mensaje
+            break;
+          case 'filter':
+            filteredContent = this.filterContent(filteredContent, rule, matchedContent);
+            this.stats.filteredMessages++;
+            break;
+          case 'block':
+            result.isAllowed = false;
+            this.stats.blockedMessages++;
+            break;
+          case 'report':
+            result.requiresReview = true;
+            this.stats.reportedMessages++;
+            break;
+          case 'auto_delete':
+            result.isAllowed = false;
+            result.autoAction = 'delete';
+            break;
+        }
+
+        // Actualizar estadísticas por tipo
+        if (rule.type === 'spam') this.stats.spamDetected++;
+        if (rule.type === 'profanity') this.stats.profanityDetected++;
+
+        // Registrar violación del usuario
+        this.recordUserViolation(userId, rule.id);
+      }
+    }
+
+    // Verificar si el usuario tiene demasiadas violaciones
+    if (this.shouldBlockUser(userId)) {
+      result.isAllowed = false;
+      result.autoAction = 'block_user';
+    }
+
+    // Si el contenido fue filtrado, asignarlo al resultado
+    if (filteredContent !== content) {
+      result.filteredContent = filteredContent;
+    }
+
+    this.stats.lastUpdated = new Date();
+    console.log('[ContentModerator] Content moderated:', {
+      original: content.substring(0, 50),
+      filtered: filteredContent?.substring(0, 50),
+      violations: result.violations.length,
+      isAllowed: result.isAllowed
+    });
+
+    return result;
+  }
+
+  private filterContent(content: string, rule: ModerationRule, matchedContent: string): string {
+    let filtered = content;
+
+    switch (rule.type) {
+      case 'profanity':
+        // Reemplazar palabras ofensivas con asteriscos
+        if (rule.keywords) {
+          for (const keyword of rule.keywords) {
+            const regex = new RegExp(keyword, 'gi');
+            filtered = filtered.replace(regex, '*'.repeat(keyword.length));
+          }
+        }
+        break;
+      case 'spam':
+        // Reducir texto repetitivo
+        if (rule.pattern) {
+          filtered = filtered.replace(rule.pattern, (match) => {
+            const parts = match.split(/(.{1,50})\1+/);
+            return parts[1] || match.substring(0, 50);
+          });
+        }
+        break;
+      case 'inappropriate':
+        // Censurar información personal
+        if (rule.pattern) {
+          filtered = filtered.replace(rule.pattern, '[INFORMACIÓN CENSURADA]');
+        }
+        break;
+      default:
+        // Para otros tipos, simplemente marcar como filtrado
+        filtered = `[CONTENIDO FILTRADO: ${rule.name}]`;
+    }
+
+    return filtered;
+  }
+
+  private recordUserViolation(userId: string, ruleId: string): void {
+    if (!this.userViolations[userId]) {
+      this.userViolations[userId] = {
+        count: 0,
+        lastViolation: new Date(),
+        violations: []
+      };
+    }
+
+    this.userViolations[userId].count++;
+    this.userViolations[userId].lastViolation = new Date();
+    this.userViolations[userId].violations.push(ruleId);
+  }
+
+  private shouldBlockUser(userId: string): boolean {
+    const userViolations = this.userViolations[userId];
+    if (!userViolations) return false;
+
+    // Bloquear si tiene más de 5 violaciones en las últimas 24 horas
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    if (userViolations.count >= 5 && userViolations.lastViolation > oneDayAgo) {
+      return true;
+    }
+
+    // Bloquear si tiene más de 10 violaciones en total
+    if (userViolations.count >= 10) {
+      return true;
+    }
+
+    return false;
+  }
+
+  public getModerationStats(): ModerationStats {
+    return { ...this.stats };
+  }
+
+  public getUserViolations(userId: string) {
+    return this.userViolations[userId] || { count: 0, lastViolation: new Date(), violations: [] };
+  }
+
+  public updateRule(ruleId: string, updates: Partial<ModerationRule>): boolean {
+    const ruleIndex = this.moderationRules.findIndex(rule => rule.id === ruleId);
+    if (ruleIndex === -1) return false;
+
+    this.moderationRules[ruleIndex] = { ...this.moderationRules[ruleIndex], ...updates };
+    console.log('[ContentModerator] Rule updated:', ruleId);
+    return true;
+  }
+
+  public addCustomRule(rule: Omit<ModerationRule, 'id'>): string {
+    const ruleId = `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newRule: ModerationRule = { ...rule, id: ruleId };
+    this.moderationRules.push(newRule);
+    console.log('[ContentModerator] Custom rule added:', ruleId);
+    return ruleId;
+  }
+
+  public getRules(): ModerationRule[] {
+    return [...this.moderationRules];
+  }
+
+  public resetUserViolations(userId: string): void {
+    delete this.userViolations[userId];
+    console.log('[ContentModerator] User violations reset:', userId);
+  }
+}
+
 // Reglas de permisos por rol y tipo de chat
 const PERMISSION_RULES: PermissionRule[] = [
   // Administradores - Acceso completo
@@ -54,6 +409,11 @@ const PERMISSION_RULES: PermissionRule[] = [
 // Validaciones de seguridad para chat
 export class ChatSecurityValidator {
   private static instance: ChatSecurityValidator;
+  private contentModerator: ContentModerator;
+  
+  private constructor() {
+    this.contentModerator = ContentModerator.getInstance();
+  }
   
   static getInstance(): ChatSecurityValidator {
     if (!ChatSecurityValidator.instance) {
@@ -232,8 +592,8 @@ export class ChatSecurityValidator {
     return Array.from(permissions);
   }
   
-  // Validar contenido del mensaje
-  validateMessageContent(content: string, messageType: string): { isValid: boolean; reason?: string } {
+  // Validar contenido del mensaje con moderación avanzada
+  validateMessageContent(content: string, messageType: string, userId: string, chatType: Chat['type']): { isValid: boolean; reason?: string; filteredContent?: string } {
     // Validaciones básicas de contenido
     if (!content || content.trim().length === 0) {
       return { isValid: false, reason: 'El mensaje no puede estar vacío' };
@@ -243,17 +603,53 @@ export class ChatSecurityValidator {
       return { isValid: false, reason: 'El mensaje es demasiado largo (máximo 4000 caracteres)' };
     }
     
-    // Filtro básico de contenido inapropiado
-    const inappropriateWords = ['spam', 'scam', 'phishing']; // Lista básica
-    const lowerContent = content.toLowerCase();
+    // Aplicar moderación de contenido
+    const moderationResult = this.contentModerator.moderateContent(content, userId, chatType);
     
-    for (const word of inappropriateWords) {
-      if (lowerContent.includes(word)) {
-        return { isValid: false, reason: 'El mensaje contiene contenido inapropiado' };
-      }
+    if (!moderationResult.isAllowed) {
+      const violationNames = moderationResult.violations.map(v => v.ruleName).join(', ');
+      return { isValid: false, reason: `Mensaje bloqueado por: ${violationNames}` };
+    }
+    
+    // Si hay contenido filtrado, devolverlo
+    if (moderationResult.filteredContent) {
+      return { 
+        isValid: true, 
+        filteredContent: moderationResult.filteredContent 
+      };
     }
     
     return { isValid: true };
+  }
+  
+  // Obtener estadísticas de moderación
+  getModerationStats(): ModerationStats {
+    return this.contentModerator.getModerationStats();
+  }
+  
+  // Obtener violaciones de un usuario
+  getUserViolations(userId: string) {
+    return this.contentModerator.getUserViolations(userId);
+  }
+  
+  // Actualizar regla de moderación
+  updateModerationRule(ruleId: string, updates: Partial<ModerationRule>): boolean {
+    return this.contentModerator.updateRule(ruleId, updates);
+  }
+  
+  // Agregar regla personalizada
+  addCustomModerationRule(rule: Omit<ModerationRule, 'id'>): string {
+    return this.contentModerator.addCustomRule(rule);
+  }
+  
+  // Obtener todas las reglas de moderación
+  getModerationRules(): ModerationRule[] {
+    return this.contentModerator.getRules();
+  }
+  
+  // Resetear violaciones de un usuario
+  resetUserViolations(userId: string): void {
+    this.contentModerator.resetUserViolations(userId);
   }
   
   // Crear chat con validaciones de seguridad
@@ -300,7 +696,7 @@ export class ChatSecurityValidator {
 
 // Middleware de autorización para acciones de chat
 export const chatAuthMiddleware = {
-  // Middleware para envío de mensajes
+  // Middleware para envío de mensajes con moderación
   validateSendMessage: (user: User, chat: Chat, content: string, messageType: string) => {
     const validator = ChatSecurityValidator.getInstance();
     
@@ -309,14 +705,14 @@ export const chatAuthMiddleware = {
       throw new Error('No tienes permisos para enviar mensajes en este chat');
     }
     
-    // Validar contenido del mensaje
-    const contentValidation = validator.validateMessageContent(content, messageType);
+    // Validar contenido del mensaje con moderación
+    const contentValidation = validator.validateMessageContent(content, messageType, user.id, chat.type);
     if (!contentValidation.isValid) {
       throw new Error(contentValidation.reason || 'Contenido del mensaje inválido');
     }
     
     console.log(`[Auth] Message send validated for user ${user.id}`);
-    return true;
+    return { isValid: true, filteredContent: contentValidation.filteredContent };
   },
   
   // Middleware para eliminación de mensajes
@@ -364,13 +760,53 @@ export const chatAuthMiddleware = {
 
 // Utilidades de seguridad para chat
 export const chatSecurityUtils = {
-  // Sanitizar contenido de mensaje
-  sanitizeMessageContent: (content: string): string => {
-    return content
-      .trim()
-      .replace(/<script[^>]*>.*?<\/script>/gi, '') // Remover scripts
-      .replace(/<[^>]*>/g, '') // Remover HTML tags
-      .substring(0, 4000); // Limitar longitud
+  // Sanitizar contenido de mensaje con moderación
+  sanitizeMessageContent: (content: string, userId: string, chatType: Chat['type']): string => {
+    if (!content || typeof content !== 'string') {
+      return '';
+    }
+    
+    // Aplicar moderación de contenido
+    const moderator = ContentModerator.getInstance();
+    const moderationResult = moderator.moderateContent(content, userId, chatType);
+    
+    if (!moderationResult.isAllowed) {
+      throw new Error(`Mensaje bloqueado por violación de políticas: ${moderationResult.violations.map(v => v.ruleName).join(', ')}`);
+    }
+    
+    // Usar contenido filtrado si está disponible
+    let sanitized = moderationResult.filteredContent || content;
+    
+    // Remover scripts y HTML peligroso
+    sanitized = sanitized
+      .replace(/<script[^>]*>.*?<\/script>/gi, '')
+      .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '');
+    
+    // Limitar longitud
+    if (sanitized.length > 1000) {
+      sanitized = sanitized.substring(0, 1000) + '...';
+    }
+    
+    // Escapar caracteres especiales para prevenir XSS
+    sanitized = sanitized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+    
+    // Log si hubo violaciones pero el mensaje fue permitido
+    if (moderationResult.violations.length > 0) {
+      console.log('[ChatSecurity] Content moderated with violations:', {
+        userId,
+        violations: moderationResult.violations.length,
+        filtered: moderationResult.filteredContent !== undefined
+      });
+    }
+    
+    return sanitized.trim();
   },
   
   // Generar ID seguro para mensajes
