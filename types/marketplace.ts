@@ -162,5 +162,6 @@ export interface SearchFilters {
   brand?: string;
   inStock?: boolean;
   freeShipping?: boolean;
+  fastShipping?: boolean;
   sortBy?: 'relevance' | 'price_low' | 'price_high' | 'rating' | 'newest';
 }

@@ -8,7 +8,9 @@ import {
   Image,
   TextInput,
   FlatList,
-  Dimensions
+  Dimensions,
+  Modal,
+  PanResponder
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -24,7 +26,11 @@ import {
   Home,
   Sparkles,
   Dumbbell,
-  Download
+  Download,
+  X,
+  Check,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
 import { Product, SearchFilters } from '@/types/marketplace';
@@ -59,10 +65,269 @@ export default function MarketplaceScreen() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filters, setFilters] = useState<SearchFilters>({});
   const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [tempFilters, setTempFilters] = useState<SearchFilters>({});
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   const displayProducts = searchQuery || selectedCategory || Object.keys(filters).length > 0
     ? searchProducts(searchQuery, { ...filters, category: selectedCategory || filters.category })
     : getFeaturedProducts();
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const applyFilters = () => {
+    setFilters(tempFilters);
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    setTempFilters({});
+    setFilters({});
+    setPriceRange([0, 1000]);
+    setSelectedCategory('');
+  };
+
+  const updateTempFilter = (key: keyof SearchFilters, value: any) => {
+    setTempFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const CustomSlider = ({ value, minimumValue, maximumValue, onValueChange }: {
+    value: number;
+    minimumValue: number;
+    maximumValue: number;
+    onValueChange: (value: number) => void;
+  }) => {
+    const [sliderValue, setSliderValue] = useState<number>(value);
+    const sliderWidth = 280;
+    
+    const panResponder = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const locationX = evt.nativeEvent.locationX;
+        const newValue = Math.max(minimumValue, Math.min(maximumValue, 
+          minimumValue + (locationX / sliderWidth) * (maximumValue - minimumValue)
+        ));
+        const roundedValue = Math.round(newValue);
+        setSliderValue(roundedValue);
+        onValueChange(roundedValue);
+      },
+      onPanResponderMove: (evt) => {
+        const locationX = evt.nativeEvent.locationX;
+        const newValue = Math.max(minimumValue, Math.min(maximumValue, 
+          minimumValue + (locationX / sliderWidth) * (maximumValue - minimumValue)
+        ));
+        const roundedValue = Math.round(newValue);
+        setSliderValue(roundedValue);
+        onValueChange(roundedValue);
+      },
+      onPanResponderRelease: () => {},
+    });
+
+    const thumbPosition = ((sliderValue - minimumValue) / (maximumValue - minimumValue)) * sliderWidth;
+
+    return (
+      <View style={styles.customSlider} {...panResponder.panHandlers}>
+        <View style={styles.sliderTrack}>
+          <View style={[styles.sliderFill, { width: Math.max(0, thumbPosition) }]} />
+          <View style={[styles.sliderThumb, { left: Math.max(0, Math.min(sliderWidth - 20, thumbPosition - 10)) }]} />
+        </View>
+      </View>
+    );
+  };
+
+  const renderFilterModal = () => {
+    return (
+      <Modal
+        visible={showFilters}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <SafeAreaView style={styles.filterModal}>
+          {/* Filter Header */}
+          <View style={styles.filterHeader}>
+            <TouchableOpacity onPress={() => setShowFilters(false)}>
+              <X color="#64748b" size={24} />
+            </TouchableOpacity>
+            <Text style={styles.filterTitle}>Filtros</Text>
+            <TouchableOpacity onPress={clearFilters}>
+              <Text style={styles.clearText}>Limpiar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.filterContent}>
+            {/* Price Range */}
+            <View style={styles.filterSection}>
+              <TouchableOpacity 
+                style={styles.filterSectionHeader}
+                onPress={() => toggleSection('price')}
+              >
+                <Text style={styles.filterSectionTitle}>Rango de Precio</Text>
+                {expandedSections.price ? 
+                  <ChevronUp color="#64748b" size={20} /> : 
+                  <ChevronDown color="#64748b" size={20} />
+                }
+              </TouchableOpacity>
+              {(expandedSections.price ?? true) && (
+                <View style={styles.filterSectionContent}>
+                  <View style={styles.priceRangeContainer}>
+                    <Text style={styles.priceLabel}>${priceRange[0]} - ${priceRange[1]}</Text>
+                  </View>
+                  <CustomSlider
+                    value={priceRange[1]}
+                    minimumValue={0}
+                    maximumValue={1000}
+                    onValueChange={(value: number) => setPriceRange([priceRange[0], value])}
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* Rating Filter */}
+            <View style={styles.filterSection}>
+              <TouchableOpacity 
+                style={styles.filterSectionHeader}
+                onPress={() => toggleSection('rating')}
+              >
+                <Text style={styles.filterSectionTitle}>Calificación</Text>
+                {expandedSections.rating ? 
+                  <ChevronUp color="#64748b" size={20} /> : 
+                  <ChevronDown color="#64748b" size={20} />
+                }
+              </TouchableOpacity>
+              {(expandedSections.rating ?? true) && (
+                <View style={styles.filterSectionContent}>
+                  {[5, 4, 3, 2, 1].map((rating) => (
+                    <TouchableOpacity
+                      key={rating}
+                      style={styles.ratingOption}
+                      onPress={() => updateTempFilter('minRating', rating)}
+                    >
+                      <View style={styles.ratingStars}>
+                        {Array.from({ length: 5 }, (_, i) => (
+                          <Star
+                            key={i}
+                            color={i < rating ? '#fbbf24' : '#e2e8f0'}
+                            fill={i < rating ? '#fbbf24' : 'transparent'}
+                            size={16}
+                          />
+                        ))}
+                        <Text style={styles.ratingText}>y más</Text>
+                      </View>
+                      {tempFilters.minRating === rating && (
+                        <Check color="#2563eb" size={20} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Shipping Options */}
+            <View style={styles.filterSection}>
+              <TouchableOpacity 
+                style={styles.filterSectionHeader}
+                onPress={() => toggleSection('shipping')}
+              >
+                <Text style={styles.filterSectionTitle}>Envío</Text>
+                {expandedSections.shipping ? 
+                  <ChevronUp color="#64748b" size={20} /> : 
+                  <ChevronDown color="#64748b" size={20} />
+                }
+              </TouchableOpacity>
+              {(expandedSections.shipping ?? true) && (
+                <View style={styles.filterSectionContent}>
+                  <TouchableOpacity
+                    style={styles.checkboxOption}
+                    onPress={() => updateTempFilter('freeShipping', !tempFilters.freeShipping)}
+                  >
+                    <View style={[
+                      styles.checkbox,
+                      tempFilters.freeShipping && styles.checkboxActive
+                    ]}>
+                      {tempFilters.freeShipping && (
+                        <Check color="#ffffff" size={16} />
+                      )}
+                    </View>
+                    <Text style={styles.checkboxText}>Envío gratis</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.checkboxOption}
+                    onPress={() => updateTempFilter('fastShipping', !tempFilters.fastShipping)}
+                  >
+                    <View style={[
+                      styles.checkbox,
+                      tempFilters.fastShipping && styles.checkboxActive
+                    ]}>
+                      {tempFilters.fastShipping && (
+                        <Check color="#ffffff" size={16} />
+                      )}
+                    </View>
+                    <Text style={styles.checkboxText}>Envío rápido</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Sort Options */}
+            <View style={styles.filterSection}>
+              <TouchableOpacity 
+                style={styles.filterSectionHeader}
+                onPress={() => toggleSection('sort')}
+              >
+                <Text style={styles.filterSectionTitle}>Ordenar por</Text>
+                {expandedSections.sort ? 
+                  <ChevronUp color="#64748b" size={20} /> : 
+                  <ChevronDown color="#64748b" size={20} />
+                }
+              </TouchableOpacity>
+              {(expandedSections.sort ?? true) && (
+                <View style={styles.filterSectionContent}>
+                  {[
+                    { key: 'relevance', label: 'Relevancia' },
+                    { key: 'price_low', label: 'Precio: menor a mayor' },
+                    { key: 'price_high', label: 'Precio: mayor a menor' },
+                    { key: 'rating', label: 'Mejor calificados' },
+                    { key: 'newest', label: 'Más recientes' }
+                  ].map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={styles.sortOption}
+                      onPress={() => updateTempFilter('sortBy', option.key)}
+                    >
+                      <Text style={styles.sortText}>{option.label}</Text>
+                      {tempFilters.sortBy === option.key && (
+                        <Check color="#2563eb" size={20} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+
+          {/* Filter Actions */}
+          <View style={styles.filterActions}>
+            <TouchableOpacity 
+              style={styles.applyButton}
+              onPress={applyFilters}
+            >
+              <Text style={styles.applyButtonText}>Aplicar Filtros</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    );
+  };
 
   const renderCategoryIcon = (categoryId: string, color: string, size: number) => {
     const IconComponent = categoryIcons[categoryId];
@@ -258,6 +523,9 @@ export default function MarketplaceScreen() {
           }
         />
       </View>
+
+      {/* Filter Modal */}
+      {renderFilterModal()}
     </SafeAreaView>
   );
 }
@@ -573,5 +841,165 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
     textAlign: 'center',
+  },
+  // Filter Modal Styles
+  filterModal: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  filterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  filterTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  clearText: {
+    fontSize: 16,
+    color: '#2563eb',
+    fontWeight: '500',
+  },
+  filterContent: {
+    flex: 1,
+  },
+  filterSection: {
+    backgroundColor: '#ffffff',
+    marginBottom: 8,
+  },
+  filterSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  filterSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  filterSectionContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  priceRangeContainer: {
+    marginBottom: 16,
+  },
+  priceLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2563eb',
+    textAlign: 'center',
+  },
+  customSlider: {
+    width: '100%',
+    height: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  sliderTrack: {
+    height: 4,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 2,
+    position: 'relative',
+    width: 280,
+  },
+  sliderFill: {
+    height: 4,
+    backgroundColor: '#2563eb',
+    borderRadius: 2,
+  },
+  sliderThumb: {
+    position: 'absolute',
+    top: -8,
+    width: 20,
+    height: 20,
+    backgroundColor: '#2563eb',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  ratingOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  ratingStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    color: '#64748b',
+    marginLeft: 8,
+  },
+  checkboxOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  checkboxText: {
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  sortText: {
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  filterActions: {
+    padding: 20,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  applyButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
