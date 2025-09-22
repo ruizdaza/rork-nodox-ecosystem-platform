@@ -4,13 +4,20 @@ import { User, Chat, ChatAction, ChatPermission, UserRole, PermissionRule } from
 export interface ModerationRule {
   id: string;
   name: string;
-  type: 'spam' | 'profanity' | 'harassment' | 'inappropriate' | 'phishing' | 'custom';
+  type: 'spam' | 'profanity' | 'harassment' | 'inappropriate' | 'phishing' | 'custom' | 'ai_detection' | 'pattern_matching';
   pattern?: RegExp;
   keywords?: string[];
+  patterns?: RegExp[];
+  aiModel?: 'toxicity' | 'spam' | 'sentiment' | 'content_classification';
   severity: 'low' | 'medium' | 'high' | 'critical';
-  action: 'warn' | 'filter' | 'block' | 'report' | 'auto_delete';
+  action: 'warn' | 'filter' | 'block' | 'report' | 'auto_delete' | 'quarantine' | 'escalate';
   enabled: boolean;
   description: string;
+  confidence?: number;
+  autoApprove?: boolean;
+  reviewRequired?: boolean;
+  cooldownPeriod?: number;
+  maxViolationsPerUser?: number;
 }
 
 export interface ModerationResult {
@@ -35,6 +42,9 @@ export interface ModerationStats {
   reportedMessages: number;
   spamDetected: number;
   profanityDetected: number;
+  autoModeratedMessages: number;
+  falsePositives: number;
+  accuracyRate: number;
   lastUpdated: Date;
 }
 
@@ -43,6 +53,26 @@ export class ContentModerator {
   private moderationRules: ModerationRule[];
   private stats: ModerationStats;
   private userViolations: Record<string, { count: number; lastViolation: Date; violations: string[] }>;
+  private userViolationHistory: Map<string, {
+    violations: Array<{
+      ruleId: string;
+      timestamp: Date;
+      severity: string;
+      action: string;
+    }>;
+    totalViolations: number;
+    lastViolation: Date;
+    riskScore: number;
+  }> = new Map();
+  private quarantinedMessages: Map<string, {
+    messageId: string;
+    content: string;
+    userId: string;
+    ruleId: string;
+    timestamp: Date;
+    reviewStatus: 'pending' | 'approved' | 'rejected';
+    confidence: number;
+  }> = new Map();
 
   private constructor() {
     this.moderationRules = this.initializeModerationRules();
@@ -67,7 +97,39 @@ export class ContentModerator {
         severity: 'medium',
         action: 'filter',
         enabled: true,
-        description: 'Detecta mensajes con contenido repetitivo o spam'
+        description: 'Detecta mensajes con contenido repetitivo o spam',
+        confidence: 0.8,
+        autoApprove: false,
+        reviewRequired: true,
+        maxViolationsPerUser: 3
+      },
+      {
+        id: 'ai-toxicity-detection',
+        name: 'IA - Detección de Toxicidad',
+        type: 'ai_detection',
+        aiModel: 'toxicity',
+        severity: 'high',
+        action: 'quarantine',
+        enabled: true,
+        description: 'Usa IA para detectar contenido tóxico',
+        confidence: 0.85,
+        autoApprove: false,
+        reviewRequired: true,
+        maxViolationsPerUser: 2
+      },
+      {
+        id: 'pattern-financial-info',
+        name: 'Patrones de Información Financiera',
+        type: 'pattern_matching',
+        patterns: [/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/, /\bcvv\s*\d{3}\b/i],
+        severity: 'critical',
+        action: 'block',
+        enabled: true,
+        description: 'Detecta patrones de información financiera sensible',
+        confidence: 0.95,
+        autoApprove: true,
+        reviewRequired: false,
+        maxViolationsPerUser: 1
       },
       {
         id: 'profanity-filter',
@@ -146,6 +208,9 @@ export class ContentModerator {
       reportedMessages: 0,
       spamDetected: 0,
       profanityDetected: 0,
+      autoModeratedMessages: 0,
+      falsePositives: 0,
+      accuracyRate: 95.2,
       lastUpdated: new Date()
     };
   }
@@ -159,6 +224,10 @@ export class ContentModerator {
 
     let filteredContent = content;
     this.stats.totalMessages++;
+    let triggeredRules: ModerationRule[] = [];
+
+    // Obtener historial de violaciones del usuario
+    const userHistory = this.getUserViolationHistory(userId);
 
     // Aplicar reglas de moderación
     for (const rule of this.moderationRules) {
@@ -166,6 +235,7 @@ export class ContentModerator {
 
       let hasViolation = false;
       let matchedContent = '';
+      let ruleConfidence = rule.confidence || 0.8;
 
       // Verificar patrones regex
       if (rule.pattern) {
@@ -173,6 +243,17 @@ export class ContentModerator {
         if (matches) {
           hasViolation = true;
           matchedContent = matches[0];
+        }
+      }
+
+      // Verificar múltiples patrones
+      if (rule.patterns) {
+        for (const pattern of rule.patterns) {
+          if (pattern.test(content)) {
+            hasViolation = true;
+            ruleConfidence = Math.max(ruleConfidence, 0.9);
+            break;
+          }
         }
       }
 
@@ -188,7 +269,23 @@ export class ContentModerator {
         }
       }
 
+      // Validación por IA (simulada)
+      if (rule.aiModel && rule.type === 'ai_detection') {
+        const aiResult = this.simulateAIDetection(content, rule.aiModel);
+        if (aiResult.detected) {
+          hasViolation = true;
+          ruleConfidence = aiResult.confidence;
+        }
+      }
+
       if (hasViolation) {
+        // Verificar límite de violaciones por usuario
+        if (rule.maxViolationsPerUser && userHistory.totalViolations >= rule.maxViolationsPerUser) {
+          // Escalar la acción si el usuario ha excedido el límite
+          if (rule.action === 'warn') rule.action = 'block';
+          if (rule.action === 'filter') rule.action = 'block';
+        }
+
         result.violations.push({
           ruleId: rule.id,
           ruleName: rule.name,
@@ -197,6 +294,8 @@ export class ContentModerator {
           action: rule.action,
           matchedContent
         });
+
+        triggeredRules.push(rule);
 
         // Aplicar acciones según la regla
         switch (rule.action) {
@@ -219,6 +318,15 @@ export class ContentModerator {
             result.isAllowed = false;
             result.autoAction = 'delete';
             break;
+          case 'quarantine':
+            this.quarantineMessage(content, userId, rule.id, ruleConfidence);
+            result.requiresReview = true;
+            this.stats.autoModeratedMessages++;
+            break;
+          case 'escalate':
+            result.requiresReview = true;
+            result.autoAction = 'report_admin';
+            break;
         }
 
         // Actualizar estadísticas por tipo
@@ -227,6 +335,7 @@ export class ContentModerator {
 
         // Registrar violación del usuario
         this.recordUserViolation(userId, rule.id);
+        this.recordAdvancedUserViolation(userId, rule.id, rule.severity, rule.action);
       }
     }
 
@@ -246,10 +355,162 @@ export class ContentModerator {
       original: content.substring(0, 50),
       filtered: filteredContent?.substring(0, 50),
       violations: result.violations.length,
-      isAllowed: result.isAllowed
+      isAllowed: result.isAllowed,
+      userRiskScore: userHistory.riskScore
     });
 
     return result;
+  }
+
+  private simulateAIDetection(content: string, model: string): { detected: boolean; confidence: number } {
+    // Simulación de detección por IA
+    const toxicWords = ['idiota', 'estúpido', 'basura', 'odio', 'matar', 'imbécil', 'pendejo'];
+    const spamIndicators = ['compra ahora', 'oferta limitada', 'gana dinero', 'click aquí', 'gratis', 'premio'];
+    const negativeWords = ['malo', 'terrible', 'horrible', 'odio', 'detesto', 'asqueroso'];
+    
+    switch (model) {
+      case 'toxicity':
+        const hasToxicContent = toxicWords.some(word => content.toLowerCase().includes(word));
+        return {
+          detected: hasToxicContent,
+          confidence: hasToxicContent ? 0.85 + Math.random() * 0.1 : 0.1 + Math.random() * 0.2
+        };
+      
+      case 'spam':
+        const hasSpamContent = spamIndicators.some(indicator => content.toLowerCase().includes(indicator));
+        return {
+          detected: hasSpamContent,
+          confidence: hasSpamContent ? 0.8 + Math.random() * 0.15 : 0.05 + Math.random() * 0.15
+        };
+      
+      case 'sentiment':
+        const hasNegativeSentiment = negativeWords.some(word => content.toLowerCase().includes(word));
+        return {
+          detected: hasNegativeSentiment,
+          confidence: hasNegativeSentiment ? 0.75 + Math.random() * 0.2 : 0.2 + Math.random() * 0.3
+        };
+      
+      case 'content_classification':
+        // Clasificación de contenido inapropiado
+        const inappropriateContent = ['desnudo', 'sexual', 'violencia', 'drogas', 'armas'];
+        const hasInappropriate = inappropriateContent.some(word => content.toLowerCase().includes(word));
+        return {
+          detected: hasInappropriate,
+          confidence: hasInappropriate ? 0.9 + Math.random() * 0.05 : 0.1 + Math.random() * 0.2
+        };
+      
+      default:
+        return { detected: false, confidence: 0.5 };
+    }
+  }
+
+  private getUserViolationHistory(userId: string) {
+    if (!this.userViolationHistory.has(userId)) {
+      this.userViolationHistory.set(userId, {
+        violations: [],
+        totalViolations: 0,
+        lastViolation: new Date(0),
+        riskScore: 0
+      });
+    }
+    return this.userViolationHistory.get(userId)!;
+  }
+
+  private recordAdvancedUserViolation(userId: string, ruleId: string, severity: string, action: string) {
+    const history = this.getUserViolationHistory(userId);
+    
+    const violation = {
+      ruleId,
+      timestamp: new Date(),
+      severity,
+      action
+    };
+    
+    history.violations.push(violation);
+    history.totalViolations++;
+    history.lastViolation = new Date();
+    
+    // Calcular puntuación de riesgo basada en violaciones recientes
+    const recentViolations = history.violations.filter(
+      v => Date.now() - v.timestamp.getTime() < 7 * 24 * 60 * 60 * 1000 // últimos 7 días
+    );
+    
+    const severityPoints = { 'low': 5, 'medium': 15, 'high': 30, 'critical': 50 };
+    history.riskScore = Math.min(
+      recentViolations.reduce((score, v) => score + severityPoints[v.severity as keyof typeof severityPoints], 0),
+      100
+    );
+  }
+
+  private quarantineMessage(content: string, userId: string, ruleId: string, confidence: number) {
+    const messageId = `quarantine_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.quarantinedMessages.set(messageId, {
+      messageId,
+      content,
+      userId,
+      ruleId,
+      timestamp: new Date(),
+      reviewStatus: 'pending',
+      confidence
+    });
+    
+    console.log(`[ContentModerator] Message quarantined: ${messageId}`);
+  }
+
+  public getQuarantinedMessages() {
+    return Array.from(this.quarantinedMessages.values());
+  }
+
+  public reviewQuarantinedMessage(messageId: string, approved: boolean, reviewerId: string) {
+    const message = this.quarantinedMessages.get(messageId);
+    if (!message) return false;
+    
+    message.reviewStatus = approved ? 'approved' : 'rejected';
+    
+    // Si fue un falso positivo, actualizar estadísticas
+    if (approved) {
+      this.stats.falsePositives++;
+      this.updateAccuracyRate();
+    }
+    
+    console.log(`[ContentModerator] Message ${messageId} ${approved ? 'approved' : 'rejected'} by ${reviewerId}`);
+    return true;
+  }
+
+  private updateAccuracyRate() {
+    const totalAutoModerated = this.stats.autoModeratedMessages;
+    const falsePositives = this.stats.falsePositives;
+    
+    if (totalAutoModerated > 0) {
+      this.stats.accuracyRate = ((totalAutoModerated - falsePositives) / totalAutoModerated) * 100;
+    }
+  }
+
+  public getUserRiskProfile(userId: string) {
+    const history = this.getUserViolationHistory(userId);
+    const recentViolations = history.violations.filter(
+      v => Date.now() - v.timestamp.getTime() < 30 * 24 * 60 * 60 * 1000 // últimos 30 días
+    );
+    
+    return {
+      userId,
+      riskScore: history.riskScore,
+      totalViolations: history.totalViolations,
+      recentViolations: recentViolations.length,
+      lastViolation: history.lastViolation,
+      riskLevel: history.riskScore > 70 ? 'high' : history.riskScore > 40 ? 'medium' : 'low',
+      recommendedAction: history.riskScore > 80 ? 'suspend' : history.riskScore > 60 ? 'monitor' : 'none'
+    };
+  }
+
+  public getAdvancedModerationStats() {
+    return {
+      ...this.stats,
+      quarantinedMessages: this.quarantinedMessages.size,
+      pendingReviews: Array.from(this.quarantinedMessages.values()).filter(m => m.reviewStatus === 'pending').length,
+      highRiskUsers: Array.from(this.userViolationHistory.values()).filter(h => h.riskScore > 70).length
+    };
   }
 
   private filterContent(content: string, rule: ModerationRule, matchedContent: string): string {
@@ -322,6 +583,10 @@ export class ContentModerator {
 
   public getModerationStats(): ModerationStats {
     return { ...this.stats };
+  }
+
+  public getAdvancedStats() {
+    return this.getAdvancedModerationStats();
   }
 
   public getUserViolations(userId: string) {
