@@ -182,6 +182,126 @@ export interface AdminStats {
   };
 }
 
+export interface UsageStats {
+  overview: {
+    totalUsers: number;
+    activeUsersToday: number;
+    activeUsersWeek: number;
+    activeUsersMonth: number;
+    newUsersToday: number;
+    newUsersWeek: number;
+    newUsersMonth: number;
+    retentionRate: number;
+    churnRate: number;
+  };
+  messaging: {
+    totalMessages: number;
+    messagesPerDay: number[];
+    messagesPerHour: number[];
+    averageMessagesPerUser: number;
+    averageResponseTime: number;
+    messageTypes: Record<string, number>;
+    peakHours: { hour: number; count: number }[];
+    conversationDuration: {
+      average: number;
+      median: number;
+      longest: number;
+    };
+  };
+  engagement: {
+    dailyActiveUsers: number[];
+    weeklyActiveUsers: number[];
+    monthlyActiveUsers: number[];
+    sessionDuration: {
+      average: number;
+      median: number;
+      distribution: Record<string, number>;
+    };
+    userRetention: {
+      day1: number;
+      day7: number;
+      day30: number;
+    };
+    featureUsage: Record<string, number>;
+  };
+  business: {
+    allyStats: {
+      totalAllies: number;
+      activeAllies: number;
+      pendingApplications: number;
+      approvedApplications: number;
+      rejectedApplications: number;
+      averageResponseTime: number;
+      customerSatisfaction: number;
+    };
+    transactionStats: {
+      totalTransactions: number;
+      transactionVolume: number;
+      averageTransactionValue: number;
+      transactionsPerDay: number[];
+      topServices: { name: string; count: number; revenue: number }[];
+    };
+    referralStats: {
+      totalReferrals: number;
+      successfulReferrals: number;
+      referralConversionRate: number;
+      topReferrers: { userId: string; name: string; referrals: number }[];
+    };
+  };
+  geographic: {
+    usersByCountry: Record<string, number>;
+    usersByCity: Record<string, number>;
+    messagesByRegion: Record<string, number>;
+    peakTimesByRegion: Record<string, { hour: number; count: number }[]>;
+  };
+  technical: {
+    platformUsage: Record<string, number>;
+    deviceTypes: Record<string, number>;
+    osVersions: Record<string, number>;
+    appVersions: Record<string, number>;
+    errorRates: {
+      total: number;
+      byType: Record<string, number>;
+      byPlatform: Record<string, number>;
+    };
+    performanceMetrics: {
+      averageLoadTime: number;
+      crashRate: number;
+      memoryUsage: number;
+      networkLatency: number;
+    };
+  };
+}
+
+export interface AnalyticsTimeframe {
+  start: Date;
+  end: Date;
+  granularity: 'hour' | 'day' | 'week' | 'month';
+}
+
+export interface MetricTrend {
+  current: number;
+  previous: number;
+  change: number;
+  changePercent: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+export interface DashboardWidget {
+  id: string;
+  type: 'metric' | 'chart' | 'table' | 'heatmap';
+  title: string;
+  description?: string;
+  data: any;
+  config?: {
+    chartType?: 'line' | 'bar' | 'pie' | 'area';
+    timeframe?: AnalyticsTimeframe;
+    filters?: Record<string, any>;
+  };
+  position: { x: number; y: number; width: number; height: number };
+  refreshInterval?: number;
+}
+
 export interface UserActivity {
   userId: string;
   userName: string;
