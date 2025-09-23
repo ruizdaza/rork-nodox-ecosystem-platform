@@ -23,11 +23,16 @@ import {
   Plus
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
+import { useTransactions } from "@/hooks/use-transactions";
 import NodoXLogo from "@/components/NodoXLogo";
 import NotificationBell from "@/components/NotificationBell";
 
 export default function WalletScreen() {
-  const { ncopBalance, ncopHistory, monthlyEarnings } = useNodoX();
+  const { ncopBalance, ncopHistory, monthlyEarnings, user } = useNodoX();
+  const { getUserTransactions, getTransactionStats } = useTransactions();
+  
+  const userTransactions = getUserTransactions(user.id);
+  const transactionStats = getTransactionStats;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -111,10 +116,39 @@ export default function WalletScreen() {
           </View>
         </View>
 
-        {/* Transaction History */}
+        {/* Transaction Statistics */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Historial de transacciones</Text>
-          {ncopHistory.map((transaction, index) => (
+          <Text style={styles.sectionTitle}>Estadísticas de Transacciones</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{transactionStats.totalTransactions}</Text>
+              <Text style={styles.statLabel}>Total</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{transactionStats.completedCount}</Text>
+              <Text style={styles.statLabel}>Completadas</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{transactionStats.pendingCount}</Text>
+              <Text style={styles.statLabel}>Pendientes</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Enhanced Transaction History */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Historial Detallado</Text>
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={() => router.push('/financial-dashboard')}
+            >
+              <Text style={styles.viewAllText}>Ver Dashboard</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Recent NCOP History */}
+          {ncopHistory.slice(0, 3).map((transaction, index) => (
             <View key={transaction.id || index} style={styles.transactionItem}>
               <View style={[
                 styles.transactionIcon,
@@ -136,6 +170,68 @@ export default function WalletScreen() {
               ]}>
                 {transaction.type === "earned" ? "+" : "-"}{transaction.amount} NCOP
               </Text>
+            </View>
+          ))}
+          
+          {/* Recent Marketplace Transactions */}
+          {userTransactions.slice(0, 2).map((transaction) => (
+            <View key={transaction.id} style={styles.transactionItem}>
+              <View style={[
+                styles.transactionIcon,
+                { 
+                  backgroundColor: transaction.type === "purchase" ? "#fef2f2" : 
+                                 transaction.type === "sale" ? "#dcfce7" : "#fef3c7"
+                }
+              ]}>
+                {transaction.type === "purchase" ? (
+                  <ArrowUpRight color="#ef4444" size={16} />
+                ) : transaction.type === "sale" ? (
+                  <ArrowDownLeft color="#10b981" size={16} />
+                ) : (
+                  <ArrowDownLeft color="#f59e0b" size={16} />
+                )}
+              </View>
+              <View style={styles.transactionContent}>
+                <Text style={styles.transactionTitle}>{transaction.description}</Text>
+                <View style={styles.transactionMeta}>
+                  <Text style={styles.transactionDate}>
+                    {new Date(transaction.createdAt).toLocaleDateString()}
+                  </Text>
+                  <View style={[
+                    styles.statusBadge,
+                    { 
+                      backgroundColor: transaction.status === 'completed' ? '#dcfce7' : 
+                                     transaction.status === 'pending' ? '#fef3c7' : '#fef2f2'
+                    }
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      { 
+                        color: transaction.status === 'completed' ? '#10b981' : 
+                               transaction.status === 'pending' ? '#f59e0b' : '#ef4444'
+                      }
+                    ]}>
+                      {transaction.status === 'completed' ? 'Completada' : 
+                       transaction.status === 'pending' ? 'Pendiente' : 'Fallida'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.transactionAmounts}>
+                <Text style={[
+                  styles.transactionAmount,
+                  { color: transaction.type === "purchase" ? "#ef4444" : "#10b981" }
+                ]}>
+                  {transaction.type === "purchase" ? "-" : "+"}
+                  ${transaction.amount.toLocaleString()}
+                </Text>
+                {transaction.ncopAmount && (
+                  <Text style={styles.ncopAmount}>
+                    {transaction.type === "purchase" ? "-" : "+"}
+                    {transaction.ncopAmount} NCOP
+                  </Text>
+                )}
+              </View>
             </View>
           ))}
         </View>
@@ -348,5 +444,74 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  viewAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#2563eb',
+    borderRadius: 6,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  transactionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  transactionAmounts: {
+    alignItems: 'flex-end',
+  },
+  ncopAmount: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 2,
   },
 });

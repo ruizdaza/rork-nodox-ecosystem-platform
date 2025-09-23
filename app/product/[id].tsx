@@ -21,15 +21,19 @@ import {
   RotateCcw
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import ReviewsComponent from '@/components/ReviewsComponent';
+import { useNodoX } from '@/hooks/use-nodox-store';
 
 const { width } = Dimensions.get('window');
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { products, addToCart } = useMarketplace();
+  const { user } = useNodoX();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [selectedVariant, setSelectedVariant] = useState<string | undefined>();
   const [quantity, setQuantity] = useState<number>(1);
+  const [showReviews, setShowReviews] = useState<boolean>(false);
 
   const product = products.find(p => p.id === id);
 
@@ -181,7 +185,7 @@ export default function ProductScreen() {
                 <View style={styles.shippingRow}>
                   <Truck color="#10b981" size={16} />
                   <Text style={styles.shippingText}>
-                    {product.shipping.freeShipping ? 'Envío gratis' : `Envío: $${product.shipping.shippingCost}`}
+                    {product.shipping.freeShipping ? 'Envío gratis' : `Envío: ${product.shipping.shippingCost}`}
                   </Text>
                 </View>
                 <View style={styles.shippingRow}>
@@ -197,6 +201,28 @@ export default function ProductScreen() {
                   </Text>
                 </View>
               </View>
+            </View>
+          )}
+
+          {/* Reviews Toggle */}
+          <TouchableOpacity 
+            style={styles.reviewsToggle}
+            onPress={() => setShowReviews(!showReviews)}
+          >
+            <Text style={styles.reviewsToggleText}>
+              {showReviews ? 'Ocultar Reseñas' : 'Ver Reseñas y Calificaciones'}
+            </Text>
+            <Star color="#fbbf24" size={16} fill="#fbbf24" />
+          </TouchableOpacity>
+
+          {/* Reviews Section */}
+          {showReviews && (
+            <View style={styles.reviewsSection}>
+              <ReviewsComponent 
+                productId={product.id}
+                sellerId={product.sellerId}
+                canReview={user.id !== product.sellerId}
+              />
             </View>
           )}
         </View>
@@ -486,5 +512,28 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  reviewsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  reviewsToggleText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  reviewsSection: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 16,
   },
 });

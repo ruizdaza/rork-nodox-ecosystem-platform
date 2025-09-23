@@ -151,6 +151,78 @@ export interface Review {
   helpful: number;
   verified: boolean;
   createdAt: string;
+  updatedAt?: string;
+  response?: SellerResponse;
+}
+
+export interface SellerResponse {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface ReviewStats {
+  averageRating: number;
+  totalReviews: number;
+  ratingDistribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+}
+
+export interface TransactionHistory {
+  id: string;
+  type: 'purchase' | 'sale' | 'refund' | 'commission' | 'withdrawal';
+  description: string;
+  amount: number;
+  ncopAmount?: number;
+  currency: 'COP' | 'NCOP' | 'MIXED';
+  status: 'completed' | 'pending' | 'failed' | 'cancelled';
+  orderId?: string;
+  productId?: string;
+  productName?: string;
+  buyerId?: string;
+  buyerName?: string;
+  sellerId?: string;
+  sellerName?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface FinancialMetrics {
+  totalRevenue: number;
+  totalNcopRevenue: number;
+  monthlyRevenue: number;
+  monthlyNcopRevenue: number;
+  totalTransactions: number;
+  averageOrderValue: number;
+  topSellingProducts: {
+    id: string;
+    name: string;
+    sales: number;
+    revenue: number;
+  }[];
+  topSellers: {
+    id: string;
+    name: string;
+    sales: number;
+    revenue: number;
+  }[];
+  revenueByCategory: {
+    category: string;
+    revenue: number;
+    percentage: number;
+  }[];
+  monthlyGrowth: {
+    month: string;
+    revenue: number;
+    transactions: number;
+  }[];
 }
 
 export interface SearchFilters {
