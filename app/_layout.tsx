@@ -7,6 +7,8 @@ import { StyleSheet } from "react-native";
 import { NodoXProvider } from "@/hooks/use-nodox-store";
 import { ChatProvider } from "@/hooks/use-chat";
 import { NotificationProvider } from "@/hooks/use-notifications";
+import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
+import { AnalyticsProvider } from "@/hooks/use-analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 
@@ -26,6 +28,7 @@ function RootLayoutNav() {
       <Stack.Screen name="ally-request" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="ally-status" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="admin-ally-requests" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="analytics" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -46,11 +49,15 @@ export default function RootLayout() {
         <NotificationProvider>
           <NodoXProvider>
             <ChatProvider>
-              <GestureHandlerRootView style={styles.container}>
-                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
-                  <RootLayoutNav />
-                </ErrorBoundary>
-              </GestureHandlerRootView>
+              <PremiumFeaturesProvider>
+                <AnalyticsProvider>
+                  <GestureHandlerRootView style={styles.container}>
+                    <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                      <RootLayoutNav />
+                    </ErrorBoundary>
+                  </GestureHandlerRootView>
+                </AnalyticsProvider>
+              </PremiumFeaturesProvider>
             </ChatProvider>
           </NodoXProvider>
         </NotificationProvider>

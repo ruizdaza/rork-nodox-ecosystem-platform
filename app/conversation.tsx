@@ -14,9 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { ArrowLeft, Send, Paperclip, Mic, Play, Pause, MoreVertical, Phone, Video } from 'lucide-react-native';
+import { ArrowLeft, Send, Paperclip, Mic, Play, Pause, MoreVertical, Phone, Video, Clock, FileUp, Star } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { useChat } from '@/hooks/use-chat';
+import { usePremiumFeatures } from '@/hooks/use-premium-features';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { Message } from '@/types/chat';
 import NodoXLogo from '@/components/NodoXLogo';
 
@@ -157,11 +159,29 @@ export default function ConversationScreen() {
     currentUserId 
   } = useChat();
   
+  const {
+    hasFeature,
+    initiateVideoCall,
+    scheduleMessage,
+    uploadLargeFile,
+    showPremiumAlert,
+    activeVideoCall,
+    endVideoCall
+  } = usePremiumFeatures();
+  
+  const {
+    updateChatAnalytics,
+    submitSatisfactionSurvey
+  } = useAnalytics();
+  
   const [inputText, setInputText] = useState<string>('');
   const [, setIsTyping] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false);
+  const [showSatisfactionModal, setShowSatisfactionModal] = useState<boolean>(false);
+  const [scheduledDate] = useState<Date>(new Date(Date.now() + 1000 * 60 * 60));
   const flatListRef = useRef<FlatList>(null);
   const inputHeight = useRef(new Animated.Value(40)).current;
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -213,6 +233,11 @@ export default function ConversationScreen() {
     }).start();
 
     await sendMessage(activeChat, messageText);
+    
+    // Update analytics
+    await updateChatAnalytics(activeChat, {
+      messageCount: messages.length + 1,
+    });
   };
 
   const handleInputChange = (text: string) => {
@@ -311,6 +336,93 @@ export default function ConversationScreen() {
       console.error('Error canceling recording:', error);
     }
   };
+  
+  const handleVideoCall = async () => {
+    if (!activeChat || !currentChat) return;
+    
+    if (!hasFeature('videoCalls')) {
+      showPremiumAlert('Videollamadas');
+      return;
+    }
+    
+    try {
+      const otherParticipants = participants.map(p => p.id);
+      await initiateVideoCall(activeChat, otherParticipants);
+      Alert.alert('Videollamada', 'Iniciando videollamada...');
+    } catch (error) {
+      console.error('Error initiating video call:', error);
+      Alert.alert('Error', 'No se pudo iniciar la videollamada');
+    }
+  };
+  
+  const handleScheduleMessage = async () => {
+    if (!activeChat || !inputText.trim()) return;
+    
+    if (!hasFeature('scheduledMessages')) {
+      showPremiumAlert('Mensajes Programados');
+      return;
+    }
+    
+    try {
+      await scheduleMessage(activeChat, inputText.trim(), scheduledDate);
+      setInputText('');
+      setShowScheduleModal(false);
+      Alert.alert('Éxito', 'Mensaje programado correctamente');
+    } catch (error) {
+      console.error('Error scheduling message:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo programar el mensaje');
+    }
+  };
+  
+  const handleFileUpload = async () => {
+    if (!activeChat) return;
+    
+    if (!hasFeature('largeFileSharing')) {
+      showPremiumAlert('Compartir Archivos Grandes');
+      return;
+    }
+    
+    // Simulate file selection
+    const mockFile = {
+      name: 'documento.pdf',
+      size: 5 * 1024 * 1024, // 5MB
+      type: 'application/pdf',
+      uri: 'file://mock-file-uri',
+    };
+    
+    try {
+      const messageId = `msg-${Date.now()}`;
+      await uploadLargeFile(messageId, mockFile.name, mockFile.size, mockFile.type, mockFile.uri);
+      Alert.alert('Éxito', 'Archivo subido correctamente');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo subir el archivo');
+    }
+  };
+  
+  const handleShowSatisfactionSurvey = () => {
+    if (currentChat?.type === 'support' || currentChat?.type === 'ally_client') {
+      setShowSatisfactionModal(true);
+    }
+  };
+  
+  const handleSubmitSatisfaction = async (rating: number) => {
+    if (!activeChat) return;
+    
+    try {
+      await submitSatisfactionSurvey(activeChat, rating, {
+        responseTime: rating,
+        helpfulness: rating,
+        professionalism: rating,
+        problemResolution: rating,
+      });
+      setShowSatisfactionModal(false);
+      Alert.alert('Gracias', 'Tu calificación ha sido enviada');
+    } catch (error) {
+      console.error('Error submitting satisfaction survey:', error);
+      Alert.alert('Error', 'No se pudo enviar la calificación');
+    }
+  };
 
   const formatRecordingTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -377,8 +489,17 @@ export default function ConversationScreen() {
               <TouchableOpacity style={styles.headerAction}>
                 <Phone size={20} color="#64748b" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.headerAction}>
-                <Video size={20} color="#64748b" />
+              <TouchableOpacity 
+                style={styles.headerAction}
+                onPress={handleVideoCall}
+              >
+                <Video size={20} color={hasFeature('videoCalls') ? "#2563eb" : "#cbd5e1"} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.headerAction}
+                onPress={handleShowSatisfactionSurvey}
+              >
+                <Star size={20} color="#64748b" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerAction}>
                 <MoreVertical size={20} color="#64748b" />
@@ -437,8 +558,18 @@ export default function ConversationScreen() {
             </View>
           ) : (
             <>
-              <TouchableOpacity style={styles.attachButton}>
-                <Paperclip size={22} color="#64748b" />
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={handleFileUpload}
+              >
+                <FileUp size={22} color={hasFeature('largeFileSharing') ? "#2563eb" : "#cbd5e1"} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={() => setShowScheduleModal(true)}
+              >
+                <Clock size={22} color={hasFeature('scheduledMessages') ? "#2563eb" : "#cbd5e1"} />
               </TouchableOpacity>
               
               <Animated.View style={[styles.textInputContainer, { height: inputHeight }]}>

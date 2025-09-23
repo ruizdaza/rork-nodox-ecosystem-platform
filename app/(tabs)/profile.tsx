@@ -26,7 +26,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Timer
+  Timer,
+  BarChart3
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import { useRouter } from "expo-router";
@@ -114,6 +115,12 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
+    { 
+      icon: BarChart3, 
+      title: "Analytics y Métricas", 
+      subtitle: "Visualiza tu actividad",
+      onPress: () => router.push('/analytics')
+    },
     { 
       icon: Settings, 
       title: "Configuración", 

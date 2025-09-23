@@ -37,7 +37,7 @@ export interface Message {
   chatId: string;
   senderId: string;
   content: string;
-  type: 'text' | 'image' | 'audio' | 'file';
+  type: 'text' | 'image' | 'audio' | 'file' | 'video_call' | 'scheduled';
   timestamp: Date;
   isRead: boolean;
   replyTo?: string;
@@ -47,6 +47,12 @@ export interface Message {
   isEdited?: boolean;
   editedAt?: Date;
   originalContent?: string;
+  scheduledFor?: Date;
+  isScheduled?: boolean;
+  fileSize?: number;
+  fileName?: string;
+  mimeType?: string;
+  duration?: number; // for audio/video
 }
 
 export interface Chat {
@@ -69,6 +75,10 @@ export interface ChatSettings {
   allowFileSharing: boolean;
   allowImageSharing: boolean;
   allowAudioMessages: boolean;
+  allowVideoCalls: boolean;
+  allowLargeFiles: boolean;
+  allowScheduledMessages: boolean;
+  maxFileSize: number; // in MB
   maxParticipants?: number;
   requireApprovalToJoin: boolean;
   onlyAdminsCanMessage: boolean;
@@ -311,4 +321,85 @@ export interface UserActivity {
   violationCount: number;
   status: 'active' | 'warned' | 'suspended' | 'banned';
   riskScore: number; // 0-100
+}
+
+export interface VideoCallSession {
+  id: string;
+  chatId: string;
+  initiatorId: string;
+  participants: string[];
+  status: 'pending' | 'active' | 'ended' | 'declined';
+  startTime?: Date;
+  endTime?: Date;
+  duration?: number; // in seconds
+  quality: 'low' | 'medium' | 'high';
+  recordingEnabled: boolean;
+  recordingUrl?: string;
+}
+
+export interface ScheduledMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  content: string;
+  type: Message['type'];
+  scheduledFor: Date;
+  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  createdAt: Date;
+  sentAt?: Date;
+  failureReason?: string;
+}
+
+export interface FileUpload {
+  id: string;
+  messageId: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadProgress: number;
+  uploadStatus: 'pending' | 'uploading' | 'completed' | 'failed';
+  url?: string;
+  thumbnailUrl?: string;
+  uploadedAt?: Date;
+  expiresAt?: Date;
+}
+
+export interface ChatAnalytics {
+  chatId: string;
+  messageCount: number;
+  participantCount: number;
+  averageResponseTime: number;
+  mostActiveUser: string;
+  messagesByType: Record<string, number>;
+  messagesByHour: number[];
+  messagesByDay: number[];
+  engagementScore: number;
+  satisfactionRating?: number;
+  lastAnalyzed: Date;
+}
+
+export interface UserSatisfactionSurvey {
+  id: string;
+  userId: string;
+  chatId: string;
+  rating: number; // 1-5
+  feedback?: string;
+  categories: {
+    responseTime: number;
+    helpfulness: number;
+    professionalism: number;
+    problemResolution: number;
+  };
+  submittedAt: Date;
+}
+
+export interface PremiumFeatures {
+  videoCalls: boolean;
+  largeFileSharing: boolean;
+  scheduledMessages: boolean;
+  advancedAnalytics: boolean;
+  prioritySupport: boolean;
+  customThemes: boolean;
+  messageEncryption: boolean;
+  cloudBackup: boolean;
 }
