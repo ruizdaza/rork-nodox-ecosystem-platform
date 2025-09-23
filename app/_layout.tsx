@@ -11,6 +11,7 @@ import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
 import { AnalyticsProvider } from "@/hooks/use-analytics";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
+import { trpc, trpcClient } from "@/lib/trpc";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,23 +46,25 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary onError={handleError}>
-      <QueryClientProvider client={queryClient}>
-        <NotificationProvider>
-          <NodoXProvider>
-            <ChatProvider>
-              <PremiumFeaturesProvider>
-                <AnalyticsProvider>
-                  <GestureHandlerRootView style={styles.container}>
-                    <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
-                      <RootLayoutNav />
-                    </ErrorBoundary>
-                  </GestureHandlerRootView>
-                </AnalyticsProvider>
-              </PremiumFeaturesProvider>
-            </ChatProvider>
-          </NodoXProvider>
-        </NotificationProvider>
-      </QueryClientProvider>
+      <trpc.Provider client={trpcClient} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <NotificationProvider>
+            <NodoXProvider>
+              <ChatProvider>
+                <PremiumFeaturesProvider>
+                  <AnalyticsProvider>
+                    <GestureHandlerRootView style={styles.container}>
+                      <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                        <RootLayoutNav />
+                      </ErrorBoundary>
+                    </GestureHandlerRootView>
+                  </AnalyticsProvider>
+                </PremiumFeaturesProvider>
+              </ChatProvider>
+            </NodoXProvider>
+          </NotificationProvider>
+        </QueryClientProvider>
+      </trpc.Provider>
     </ErrorBoundary>
   );
 }
