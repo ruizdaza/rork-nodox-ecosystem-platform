@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gift, ShoppingBag, Users, TrendingUp } from "lucide-react-native";
 import { InputValidator, ValidationUtils, ErrorUtils } from '@/utils/security';
+import { useNotifications } from './use-notifications';
 
 interface User {
   id: string;
@@ -149,6 +150,7 @@ export const formatNcopValue = (ncop: number): string => `${ncop.toLocaleString(
 export const formatNcopBalance = (ncop: number): string => `${ncop.toLocaleString()} NCOP`;
 
 export const [NodoXProvider, useNodoX] = createContextHook(() => {
+  const notifications = useNotifications();
   const [user, setUser] = useState<User>({
     id: "1",
     name: "María González",
@@ -412,9 +414,12 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     saveUserData(ncopBalance, newBalance, monthlyEarnings);
   };
 
-  const addNcop = (amount: number) => {
+  const addNcop = async (amount: number, source: string = 'Sistema') => {
     const newBalance = ncopBalance + amount;
     updateNcopBalance(newBalance);
+    
+    // Trigger automatic notification
+    await notifications.notifyNCOPEarned(amount, source);
   };
 
   const spendNcop = (amount: number) => {
@@ -454,8 +459,33 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     console.log('Product deleted:', id);
   };
 
-  const updateAppointmentStatus = (id: string, status: Appointment["status"]) => {
+  const updateAppointmentStatus = async (id: string, status: Appointment["status"]) => {
+    const appointment = appointments.find(a => a.id === id);
+    if (!appointment) return;
+    
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    
+    // Trigger automatic notifications based on status
+    const service = services.find(s => s.id === appointment.serviceId);
+    if (service) {
+      if (status === 'confirmed') {
+        await notifications.notifyAppointmentConfirmed(
+          service.name,
+          appointment.date,
+          appointment.time
+        );
+      } else if (status === 'cancelled') {
+        await notifications.createNotification(
+          'Cita Cancelada',
+          `Tu cita para ${service.name} el ${appointment.date} ha sido cancelada`,
+          'appointment_cancelled',
+          'appointments',
+          { serviceName: service.name, date: appointment.date, time: appointment.time },
+          'high'
+        );
+      }
+    }
+    
     console.log('Appointment status updated:', id, status);
   };
 
@@ -501,10 +531,14 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
 
   const sendNCOP = async (recipient: string, amount: number): Promise<void> => {
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (ncopBalance >= amount) {
           const newBalance = ncopBalance - amount;
           updateNcopBalance(newBalance);
+          
+          // Trigger automatic notification
+          await notifications.notifyPaymentSent(amount, recipient, 'NCOP');
+          
           console.log(`Sent ${amount} NCOP to ${recipient}`);
           resolve();
         } else {
@@ -516,10 +550,14 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
 
   const sendCOP = async (recipient: string, amount: number): Promise<void> => {
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (copBalance >= amount) {
           const newBalance = copBalance - amount;
           updateCopBalance(newBalance);
+          
+          // Trigger automatic notification
+          await notifications.notifyPaymentSent(amount, recipient, 'COP');
+          
           console.log(`Sent ${amount} COP to ${recipient}`);
           resolve();
         } else {
@@ -531,7 +569,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
 
   const rechargeCOP = async (amount: number, method: "PSE" | "CARD"): Promise<void> => {
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
           const newCopBalance = copBalance + amount;
           const ncopBonus = Math.floor(amount * 0.05 / NCOP_TO_COP_RATE);
@@ -540,6 +578,12 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
           updateCopBalance(newCopBalance);
           setNcopBalance(newNcopBalance);
           saveUserData(newNcopBalance, newCopBalance, monthlyEarnings);
+          
+          // Trigger automatic notifications
+          await notifications.notifyRechargeSuccess(amount, method);
+          if (ncopBonus > 0) {
+            await notifications.notifyNCOPEarned(ncopBonus, 'Bonus por recarga');
+          }
           
           console.log(`Recharged ${amount} COP via ${method}, bonus: ${ncopBonus} NCOP`);
           resolve();
@@ -550,7 +594,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     });
   };
 
-  const exchangeNCOP = (amount: number, description: string) => {
+  const exchangeNCOP = async (amount: number, description: string) => {
     if (ncopBalance >= amount) {
       const newBalance = ncopBalance - amount;
       updateNcopBalance(newBalance);
@@ -565,6 +609,17 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
       };
       
       setNcopHistory(prev => [newTransaction, ...prev]);
+      
+      // Trigger automatic notification
+      await notifications.createNotification(
+        'NCOP Canjeados',
+        `Has canjeado ${amount} NCOP por ${description}`,
+        'ncop_exchanged',
+        'wallet',
+        { amount, description },
+        'normal'
+      );
+      
       console.log(`Exchanged ${amount} NCOP for ${description}`);
       return true;
     }
@@ -591,7 +646,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
 
   const submitAllyRequest = async (requestData: Omit<AllyRequest, "id" | "userId" | "requestDate" | "status">): Promise<boolean> => {
     return new Promise((resolve) => {
-      setTimeout(() => {
+      setTimeout(async () => {
         const newRequest: AllyRequest = {
           ...requestData,
           id: Date.now().toString(),
@@ -609,13 +664,23 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
           allyRequestDate: new Date().toISOString(),
         }));
         
+        // Trigger automatic notification
+        await notifications.createNotification(
+          'Solicitud de Aliado Enviada',
+          'Tu solicitud para convertirte en aliado ha sido enviada y está siendo revisada',
+          'system_update',
+          'system',
+          { requestId: newRequest.id },
+          'normal'
+        );
+        
         console.log('Ally request submitted:', newRequest);
         resolve(true);
       }, 1500);
     });
   };
 
-  const approveAllyRequest = (requestId: string, tempAccess: boolean = true) => {
+  const approveAllyRequest = async (requestId: string, tempAccess: boolean = true) => {
     const request = allyRequests.find(r => r.id === requestId);
     if (!request) return false;
 
@@ -637,13 +702,25 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
         roles: tempAccess || prev.roles.includes("ally") ? prev.roles : [...prev.roles, "ally"],
         isAlly: true,
       }));
+      
+      // Trigger automatic notification
+      await notifications.createNotification(
+        tempAccess ? 'Acceso Temporal de Aliado Aprobado' : 'Solicitud de Aliado Aprobada',
+        tempAccess 
+          ? 'Tu solicitud ha sido aprobada temporalmente por 48 horas. ¡Comienza a vender!'
+          : '¡Felicidades! Tu solicitud de aliado ha sido aprobada permanentemente',
+        'system_update',
+        'system',
+        { requestId, tempAccess, expiryTime: tempAccess ? tempExpiry.toISOString() : null },
+        'high'
+      );
     }
 
     console.log(`Ally request ${tempAccess ? 'temporarily' : 'permanently'} approved:`, requestId);
     return true;
   };
 
-  const rejectAllyRequest = (requestId: string, reason: string) => {
+  const rejectAllyRequest = async (requestId: string, reason: string) => {
     const request = allyRequests.find(r => r.id === requestId);
     if (!request) return false;
 
@@ -658,6 +735,16 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
         ...prev,
         allyStatus: "rejected",
       }));
+      
+      // Trigger automatic notification
+      await notifications.createNotification(
+        'Solicitud de Aliado Rechazada',
+        `Tu solicitud de aliado ha sido rechazada. Motivo: ${reason}`,
+        'system_update',
+        'system',
+        { requestId, reason },
+        'normal'
+      );
     }
 
     console.log('Ally request rejected:', requestId, reason);
@@ -693,14 +780,47 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     return 0;
   };
 
+  // Simulate receiving payments (for demo purposes)
+  const simulatePaymentReceived = async (amount: number, from: string, currency: 'COP' | 'NCOP') => {
+    if (currency === 'COP') {
+      const newBalance = copBalance + amount;
+      updateCopBalance(newBalance);
+    } else {
+      const newBalance = ncopBalance + amount;
+      updateNcopBalance(newBalance);
+    }
+    
+    // Trigger automatic notification
+    await notifications.notifyPaymentReceived(amount, from, currency);
+    console.log(`Simulated payment received: ${amount} ${currency} from ${from}`);
+  };
+  
+  // Check for low balance and notify
+  const checkLowBalance = useCallback(async () => {
+    const lowCopThreshold = 50000; // 50,000 COP
+    const lowNcopThreshold = 100; // 100 NCOP
+    
+    if (copBalance < lowCopThreshold && copBalance > 0) {
+      await notifications.notifyLowBalance('COP', copBalance);
+    }
+    
+    if (ncopBalance < lowNcopThreshold && ncopBalance > 0) {
+      await notifications.notifyLowBalance('NCOP', ncopBalance);
+    }
+  }, [copBalance, ncopBalance, notifications]);
+  
   // Check temp access expiry on load
   useEffect(() => {
     checkTempAccessExpiry();
+    checkLowBalance();
     
     // Set up interval to check expiry every minute
-    const interval = setInterval(checkTempAccessExpiry, 60000);
+    const interval = setInterval(() => {
+      checkTempAccessExpiry();
+      checkLowBalance();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [user.allyStatus, user.allyTempAccessExpiry]);
+  }, [user.allyStatus, user.allyTempAccessExpiry, checkLowBalance]);
 
   return {
     user,
@@ -747,5 +867,8 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     formatNcopValue,
     ncopToCop,
     copToNcop,
+    // Simulation functions
+    simulatePaymentReceived,
+    checkLowBalance,
   };
 });

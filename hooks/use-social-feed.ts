@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useNotifications } from './use-notifications';
 
 interface User {
   id: string;
@@ -28,6 +29,7 @@ interface Post {
 }
 
 export const useSocialFeed = () => {
+  const notifications = useNotifications();
   const [posts, setPosts] = useState<Post[]>([
     {
       id: "1",
@@ -181,7 +183,12 @@ export const useSocialFeed = () => {
     },
   ]);
 
-  const toggleLike = useCallback((postId: string) => {
+  const toggleLike = useCallback(async (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    
+    const wasLiked = post.liked;
+    
     setPosts(prevPosts => 
       prevPosts.map(post => {
         if (post.id === postId) {
@@ -194,9 +201,25 @@ export const useSocialFeed = () => {
         return post;
       })
     );
-  }, []);
+    
+    // Trigger notification if we're liking someone else's post
+    if (!wasLiked && post.user.id !== 'current-user') {
+      await notifications.notifySocialInteraction(
+        'like',
+        'Tú', // Current user name
+        post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content
+      );
+    }
+  }, [posts, notifications]);
 
-  const toggleCommentLike = useCallback((postId: string, commentId: string) => {
+  const toggleCommentLike = useCallback(async (postId: string, commentId: string) => {
+    const post = posts.find(p => p.id === postId);
+    const comment = post?.comments.find(c => c.id === commentId);
+    
+    if (!post || !comment) return;
+    
+    const wasLiked = comment.liked;
+    
     setPosts(prevPosts => 
       prevPosts.map(post => {
         if (post.id === postId) {
@@ -217,9 +240,21 @@ export const useSocialFeed = () => {
         return post;
       })
     );
-  }, []);
+    
+    // Trigger notification if we're liking someone else's comment
+    if (!wasLiked && comment.user.id !== 'current-user') {
+      await notifications.notifySocialInteraction(
+        'like',
+        'Tú', // Current user name
+        `comentario: "${comment.content.length > 30 ? comment.content.substring(0, 30) + '...' : comment.content}"`
+      );
+    }
+  }, [posts, notifications]);
 
-  const addComment = useCallback((postId: string, content: string) => {
+  const addComment = useCallback(async (postId: string, content: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    
     const newComment: Comment = {
       id: `c${Date.now()}`,
       user: {
@@ -244,9 +279,18 @@ export const useSocialFeed = () => {
         return post;
       })
     );
-  }, []);
+    
+    // Trigger notification if we're commenting on someone else's post
+    if (post.user.id !== 'current-user') {
+      await notifications.notifySocialInteraction(
+        'comment',
+        'Tú', // Current user name
+        post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content
+      );
+    }
+  }, [posts, notifications]);
 
-  const addPost = useCallback((content: string, image?: string) => {
+  const addPost = useCallback(async (content: string, image?: string) => {
     const newPost: Post = {
       id: `p${Date.now()}`,
       user: {
@@ -264,7 +308,22 @@ export const useSocialFeed = () => {
     };
 
     setPosts(prevPosts => [newPost, ...prevPosts]);
-  }, []);
+    
+    // Trigger notification about new post creation
+    await notifications.createNotification(
+      'Publicación Creada',
+      'Tu nueva publicación ha sido compartida en la comunidad',
+      'social_share',
+      'social',
+      { postId: newPost.id, content: content.length > 50 ? content.substring(0, 50) + '...' : content },
+      'normal'
+    );
+  }, [notifications]);
+
+  // Simulate social interactions from other users
+  const simulateSocialInteraction = useCallback(async (type: 'like' | 'comment' | 'share', userName: string, postTitle?: string) => {
+    await notifications.notifySocialInteraction(type, userName, postTitle);
+  }, [notifications]);
 
   return {
     posts,
@@ -272,5 +331,6 @@ export const useSocialFeed = () => {
     toggleCommentLike,
     addComment,
     addPost,
+    simulateSocialInteraction,
   };
 };

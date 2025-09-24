@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useNotifications } from './use-notifications';
 
 interface Category {
   id: string;
@@ -17,9 +18,13 @@ interface Offer {
   ncopPrice: number;
   location: string;
   rating: number;
+  expiresAt?: Date;
+  isNew?: boolean;
+  isExpiring?: boolean;
 }
 
 export const useOffers = () => {
+  const notifications = useNotifications();
   const [categories] = useState<Category[]>([
     { id: "restaurant", name: "Restaurantes" },
     { id: "fashion", name: "Moda" },
@@ -28,7 +33,7 @@ export const useOffers = () => {
     { id: "services", name: "Servicios" },
   ]);
 
-  const [offers] = useState<Offer[]>([
+  const [offers, setOffers] = useState<Offer[]>([
     {
       id: "1",
       title: "Almuerzo Ejecutivo Completo",
@@ -41,6 +46,8 @@ export const useOffers = () => {
       ncopPrice: 50,
       location: "Zona Rosa, Bogotá",
       rating: 4.8,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      isNew: true,
     },
     {
       id: "2",
@@ -54,6 +61,7 @@ export const useOffers = () => {
       ncopPrice: 30,
       location: "Centro Comercial Andino",
       rating: 4.6,
+      expiresAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days
     },
     {
       id: "3",
@@ -67,6 +75,7 @@ export const useOffers = () => {
       ncopPrice: 40,
       location: "Chapinero, Bogotá",
       rating: 4.9,
+      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days
     },
     {
       id: "4",
@@ -80,6 +89,8 @@ export const useOffers = () => {
       ncopPrice: 60,
       location: "Centro Comercial Titán",
       rating: 4.7,
+      expiresAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
+      isExpiring: true,
     },
     {
       id: "5",
@@ -93,6 +104,7 @@ export const useOffers = () => {
       ncopPrice: 35,
       location: "Zona T, Bogotá",
       rating: 4.5,
+      expiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000), // 6 days
     },
     {
       id: "6",
@@ -106,6 +118,8 @@ export const useOffers = () => {
       ncopPrice: 80,
       location: "La Candelaria, Bogotá",
       rating: 4.9,
+      expiresAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // 4 days
+      isNew: true,
     },
     {
       id: "7",
@@ -119,6 +133,7 @@ export const useOffers = () => {
       ncopPrice: 45,
       location: "Centro Comercial Santafé",
       rating: 4.4,
+      expiresAt: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000), // 8 days
     },
     {
       id: "8",
@@ -132,11 +147,101 @@ export const useOffers = () => {
       ncopPrice: 55,
       location: "Usaquén, Bogotá",
       rating: 4.8,
+      expiresAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
+      isExpiring: true,
     },
   ]);
+
+  // Check for expiring offers and notify
+  const checkExpiringOffers = useCallback(async () => {
+    const now = new Date();
+    const expiringThreshold = 24 * 60 * 60 * 1000; // 24 hours
+    
+    for (const offer of offers) {
+      if (offer.expiresAt) {
+        const timeUntilExpiry = offer.expiresAt.getTime() - now.getTime();
+        const hoursLeft = Math.floor(timeUntilExpiry / (60 * 60 * 1000));
+        
+        if (timeUntilExpiry > 0 && timeUntilExpiry <= expiringThreshold && !offer.isExpiring) {
+          // Mark as expiring and notify
+          setOffers(prev => prev.map(o => 
+            o.id === offer.id ? { ...o, isExpiring: true } : o
+          ));
+          
+          await notifications.notifyOfferExpiring(offer.title, hoursLeft);
+        }
+      }
+    }
+  }, [offers, notifications]);
+  
+  // Simulate new offer notifications
+  const addNewOffer = useCallback(async (offer: Omit<Offer, 'id' | 'isNew'>) => {
+    const newOffer: Offer = {
+      ...offer,
+      id: `offer-${Date.now()}`,
+      isNew: true,
+    };
+    
+    setOffers(prev => [newOffer, ...prev]);
+    
+    // Trigger notification for new offer
+    await notifications.notifyOfferAvailable(newOffer.title, newOffer.discount);
+    
+    console.log('New offer added with notification:', newOffer.title);
+  }, [notifications]);
+  
+  // Redeem offer with NCOP
+  const redeemOffer = useCallback(async (offerId: string) => {
+    const offer = offers.find(o => o.id === offerId);
+    if (!offer) return false;
+    
+    // This would typically integrate with the wallet system
+    // For now, we'll just trigger a notification
+    await notifications.createNotification(
+      'Oferta Canjeada',
+      `Has canjeado ${offer.title} por ${offer.ncopPrice} NCOP`,
+      'ncop_exchanged',
+      'offers',
+      { offerId, offerTitle: offer.title, ncopPrice: offer.ncopPrice },
+      'high'
+    );
+    
+    console.log('Offer redeemed:', offer.title);
+    return true;
+  }, [offers, notifications]);
+  
+  // Check for expiring offers periodically
+  useEffect(() => {
+    checkExpiringOffers();
+    
+    // Check every hour
+    const interval = setInterval(checkExpiringOffers, 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [checkExpiringOffers]);
+  
+  // Filter offers by category
+  const getOffersByCategory = useCallback((categoryId: string) => {
+    return offers.filter(offer => offer.category === categoryId);
+  }, [offers]);
+  
+  // Get new offers
+  const getNewOffers = useCallback(() => {
+    return offers.filter(offer => offer.isNew);
+  }, [offers]);
+  
+  // Get expiring offers
+  const getExpiringOffers = useCallback(() => {
+    return offers.filter(offer => offer.isExpiring);
+  }, [offers]);
 
   return {
     offers,
     categories,
+    addNewOffer,
+    redeemOffer,
+    getOffersByCategory,
+    getNewOffers,
+    getExpiringOffers,
+    checkExpiringOffers,
   };
 };

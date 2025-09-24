@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="admin-ally-requests" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="analytics" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="financial-dashboard" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="notification-demo" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }

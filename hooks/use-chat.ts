@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
 import { Chat, Message, User, Contact, ChatPermission, UserRole } from '@/types/chat';
 import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils, InputValidator, ValidationUtils } from '@/utils/security';
+import { useNotifications } from './use-notifications';
 
 const STORAGE_KEYS = {
   CHATS: 'nodox_chats',
@@ -355,6 +356,7 @@ const mockContacts: Contact[] = [
 export const [ChatProvider, useChat] = createContextHook(() => {
   const [activeChat, setActiveChat] = useState<string | undefined>();
   const queryClient = useQueryClient();
+  const notifications = useNotifications();
 
   const chatsQuery = useQuery({
     queryKey: ['chats'],
@@ -494,7 +496,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
   const sendMessage = useCallback(async (chatId: string, content: string, type: Message['type'] = 'text') => {
     const currentMessages = messagesQuery.data || {};
     const currentChats = chatsQuery.data || [];
-    // const currentUsers = usersQuery.data || {};
+    const currentUsers = usersQuery.data || {};
     
     const chat = currentChats.find(c => c.id === chatId);
     if (!chat) {
@@ -544,8 +546,24 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       saveChatsAsync(updatedChats),
     ]);
     
-    console.log('[Chat] Message sent successfully with security validation');
-  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
+    // Trigger automatic notifications for other participants
+    const otherParticipants = chat.participants.filter(id => id !== 'current-user');
+    for (const participantId of otherParticipants) {
+      const participant = currentUsers[participantId];
+      if (participant) {
+        const messagePreview = sanitizedContent.length > 50 
+          ? sanitizedContent.substring(0, 50) + '...' 
+          : sanitizedContent;
+        
+        await notifications.notifyNewMessage(
+          currentUser.name,
+          messagePreview
+        );
+      }
+    }
+    
+    console.log('[Chat] Message sent successfully with security validation and notifications');
+  }, [messagesQuery.data, chatsQuery.data, usersQuery.data, saveMessagesAsync, saveChatsAsync, notifications]);
 
   const markAsRead = useCallback(async (chatId: string) => {
     const currentMessages = messagesQuery.data || {};
@@ -566,6 +584,8 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       saveMessagesAsync(updatedMessages),
       saveChatsAsync(updatedChats),
     ]);
+    
+    console.log('[Chat] Messages marked as read for chat:', chatId);
   }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
 
   const getChatMessages = useCallback((chatId: string): Message[] => {
@@ -629,7 +649,19 @@ export const [ChatProvider, useChat] = createContextHook(() => {
       saveContactsAsync(updatedContacts),
       saveUsersAsync(updatedUsers),
     ]);
-  }, [contactsQuery.data, usersQuery.data, saveContactsAsync, saveUsersAsync]);
+    
+    // Notify about new contact added
+    await notifications.createNotification(
+      'Contacto Agregado',
+      `${contactData.name} ha sido agregado a tus contactos`,
+      'system_update',
+      'chat',
+      { contactName: contactData.name, contactId: newContactId },
+      'normal'
+    );
+    
+    console.log('[Chat] New contact added with notification:', contactData.name);
+  }, [contactsQuery.data, usersQuery.data, saveContactsAsync, saveUsersAsync, notifications]);
 
   const toggleFavoriteContact = useCallback(async (contactId: string) => {
     const currentContacts = contactsQuery.data || [];
@@ -704,10 +736,80 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     const updatedChats = [...currentChats, newChat];
     await saveChatsAsync(updatedChats);
     
+    // Notify the other participant about the new chat
+    const otherUser = currentUsers[userId];
+    if (otherUser) {
+      await notifications.createNotification(
+        'Nuevo Chat Iniciado',
+        `${currentUser.name} ha iniciado una conversación contigo`,
+        'new_message',
+        'chat',
+        { chatId: newChatId, initiatorName: currentUser.name },
+        'normal'
+      );
+    }
+    
     setActiveChat(newChatId);
-    console.log('[Chat] New chat created with security validation');
+    console.log('[Chat] New chat created with security validation and notification');
     return newChatId;
-  }, [chatsQuery.data, usersQuery.data, saveChatsAsync, setActiveChat]);
+  }, [chatsQuery.data, usersQuery.data, saveChatsAsync, setActiveChat, notifications]);
+
+  // Simulate incoming message (for demo purposes)
+  const simulateIncomingMessage = useCallback(async (chatId: string, senderId: string, content: string) => {
+    const currentMessages = messagesQuery.data || {};
+    const currentChats = chatsQuery.data || [];
+    const currentUsers = usersQuery.data || {};
+    
+    const chat = currentChats.find(c => c.id === chatId);
+    const sender = currentUsers[senderId];
+    
+    if (!chat || !sender) {
+      console.error('[Chat] Chat or sender not found for incoming message');
+      return;
+    }
+    
+    const newMessage: Message = {
+      id: chatSecurityUtils.generateSecureMessageId(),
+      chatId,
+      senderId,
+      content,
+      type: 'text',
+      timestamp: new Date(),
+      isRead: false,
+      isDeleted: false,
+      isEdited: false,
+    };
+
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: [...(currentMessages[chatId] || []), newMessage],
+    };
+
+    const updatedChats = currentChats.map(c => 
+      c.id === chatId 
+        ? { ...c, lastMessage: newMessage, updatedAt: new Date(), unreadCount: c.unreadCount + 1 }
+        : c
+    );
+
+    await Promise.all([
+      saveMessagesAsync(updatedMessages),
+      saveChatsAsync(updatedChats),
+    ]);
+    
+    // Trigger notification for incoming message
+    if (senderId !== 'current-user') {
+      const messagePreview = content.length > 50 
+        ? content.substring(0, 50) + '...' 
+        : content;
+      
+      await notifications.notifyNewMessage(
+        sender.name,
+        messagePreview
+      );
+    }
+    
+    console.log('[Chat] Incoming message simulated with notification:', newMessage);
+  }, [messagesQuery.data, chatsQuery.data, usersQuery.data, saveMessagesAsync, saveChatsAsync, notifications]);
 
   // Funciones de seguridad y permisos
   const deleteMessage = useCallback(async (messageId: string, chatId: string) => {
@@ -814,6 +916,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     addContact,
     toggleFavoriteContact,
     startChatWithContact,
+    simulateIncomingMessage,
     deleteMessage,
     getUserPermissions,
     canPerformAction,
@@ -838,6 +941,7 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     addContact,
     toggleFavoriteContact,
     startChatWithContact,
+    simulateIncomingMessage,
     deleteMessage,
     getUserPermissions,
     canPerformAction,
