@@ -226,14 +226,16 @@ export const [InternationalizationProvider, useInternationalization] = createCon
   const formatCurrency = (amount: number, currencyCode?: string): string => {
     const currency = currencyCode || currentCurrency;
     const config = localizationConfigQuery.data;
-    const currencyInfo = config?.supportedCurrencies.find(c => c.code === currency);
     
+    if (!config) return `${amount}`;
+    
+    const currencyInfo = config.supportedCurrencies.find(c => c.code === currency);
     if (!currencyInfo) return `${amount}`;
     
     const formatted = amount.toFixed(currencyInfo.decimals);
     const symbol = currencyInfo.symbol;
     
-    if (config?.numberFormat.currencyPosition === 'before') {
+    if (config.numberFormat.currencyPosition === 'before') {
       return config.numberFormat.currencySpacing ? `${symbol} ${formatted}` : `${symbol}${formatted}`;
     } else {
       return config.numberFormat.currencySpacing ? `${formatted} ${symbol}` : `${formatted}${symbol}`;
