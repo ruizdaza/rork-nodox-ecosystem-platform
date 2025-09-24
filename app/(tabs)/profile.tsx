@@ -116,6 +116,12 @@ export default function ProfileScreen() {
 
   const menuItems = [
     { 
+      icon: Building2, 
+      title: "Dashboard Empresarial", 
+      subtitle: "CRM, Promociones y Soporte",
+      onPress: () => router.push('/business-dashboard')
+    },
+    { 
       icon: BarChart3, 
       title: "Analytics y Métricas", 
       subtitle: "Visualiza tu actividad",
@@ -263,6 +269,24 @@ export default function ProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             )}
+            
+            {/* Dashboard Empresarial */}
+            <TouchableOpacity 
+              style={styles.roleCard}
+              onPress={() => router.push('/business-dashboard')}
+            >
+              <LinearGradient
+                colors={["#2563eb", "#1d4ed8"]}
+                style={styles.roleGradient}
+              >
+                <Building2 color="#ffffff" size={24} />
+                <View style={styles.roleContent}>
+                  <Text style={styles.roleTitle}>Dashboard Empresarial</Text>
+                  <Text style={styles.roleSubtitle}>CRM, Promociones y Soporte</Text>
+                </View>
+                <ChevronRight color="#ffffff" size={20} />
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
 
