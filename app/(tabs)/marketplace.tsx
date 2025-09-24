@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  TextInput,
   FlatList,
   Dimensions,
   Modal,
@@ -14,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  Search, 
   Filter, 
   ShoppingCart, 
   Star, 
@@ -30,11 +28,16 @@ import {
   X,
   Check,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  User,
+  Settings
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import { usePersonalization } from '@/hooks/use-personalization';
+import { usePWA } from '@/hooks/use-pwa';
 import { Product, SearchFilters } from '@/types/marketplace';
 import NodoXLogo from '@/components/NodoXLogo';
+import SmartSearchBar from '@/components/SmartSearchBar';
 import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -60,6 +63,18 @@ export default function MarketplaceScreen() {
     addToCart 
   } = useMarketplace();
   
+  const { 
+    addToWishlist, 
+    getPersonalizedProducts,
+    personalizedRecommendations 
+  } = usePersonalization();
+  
+  const { 
+    capabilities, 
+    isOnline, 
+    requestNotificationPermission 
+  } = usePWA();
+  
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -68,6 +83,7 @@ export default function MarketplaceScreen() {
   const [tempFilters, setTempFilters] = useState<SearchFilters>({});
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [showPersonalized, setShowPersonalized] = useState<boolean>(false);
 
   const displayProducts = searchQuery || selectedCategory || Object.keys(filters).length > 0
     ? searchProducts(searchQuery, { ...filters, category: selectedCategory || filters.category })
@@ -392,6 +408,20 @@ export default function MarketplaceScreen() {
             <Text style={styles.priceGrid}>${item.price}</Text>
             <Text style={styles.ncopPriceGrid}>{item.ncopPrice} NCOP</Text>
           </View>
+          <View style={styles.productActions}>
+            <TouchableOpacity 
+              style={styles.wishlistButton}
+              onPress={() => addToWishlist(item.id)}
+            >
+              <Heart color="#64748b" size={14} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.addToCartButton}
+              onPress={() => addToCart(item.id, 1)}
+            >
+              <Text style={styles.addToCartText}>+</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -417,6 +447,12 @@ export default function MarketplaceScreen() {
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.headerButton}
+            onPress={() => router.push('/personalization')}
+          >
+            <User color="#64748b" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.headerButton}
             onPress={() => router.push('/cart')}
           >
             <ShoppingCart color="#64748b" size={20} />
@@ -429,24 +465,24 @@ export default function MarketplaceScreen() {
         </View>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Search color="#64748b" size={20} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar productos..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+      {/* Smart Search Bar */}
+      <SmartSearchBar
+        onSearch={(query) => {
+          setSearchQuery(query);
+          // The search will be handled by the SmartSearchBar component
+        }}
+        onFilterPress={() => setShowFilters(true)}
+        placeholder="Buscar con IA..."
+        showVoiceSearch={capabilities.supportsPushNotifications}
+        showFilters={true}
+      />
+      
+      {/* PWA Status Bar */}
+      {!isOnline && (
+        <View style={styles.offlineBar}>
+          <Text style={styles.offlineText}>Modo sin conexión - Mostrando productos guardados</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.filterButton}
-          onPress={() => setShowFilters(!showFilters)}
-        >
-          <Filter color="#2563eb" size={20} />
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Categories */}
       <View style={styles.categoriesContainer}>
@@ -494,6 +530,25 @@ export default function MarketplaceScreen() {
         </ScrollView>
       </View>
 
+      {/* AI Recommendations Banner */}
+      {personalizedRecommendations.length > 0 && !searchQuery && !selectedCategory && (
+        <View style={styles.aiRecommendationsBanner}>
+          <View style={styles.aiHeader}>
+            <Sparkles color="#2563eb" size={20} />
+            <Text style={styles.aiTitle}>Recomendado para ti</Text>
+          </View>
+          <Text style={styles.aiSubtitle}>
+            Productos seleccionados por IA basados en tus preferencias
+          </Text>
+          <TouchableOpacity 
+            style={styles.viewAllButton}
+            onPress={() => setShowPersonalized(true)}
+          >
+            <Text style={styles.viewAllText}>Ver todos</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
       {/* Products */}
       <View style={styles.productsContainer}>
         <View style={styles.productsHeader}>
@@ -579,35 +634,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
-    gap: 12,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  filterButton: {
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
-    padding: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
   categoriesContainer: {
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
@@ -1001,5 +1028,79 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // New styles for enhanced features
+  offlineBar: {
+    backgroundColor: '#fbbf24',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  offlineText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  aiRecommendationsBanner: {
+    backgroundColor: '#eff6ff',
+    marginHorizontal: 20,
+    marginVertical: 16,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  aiTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  aiSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  viewAllButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  viewAllText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  productActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  wishlistButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#f1f5f9',
+  },
+  addToCartButton: {
+    backgroundColor: '#2563eb',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addToCartText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
