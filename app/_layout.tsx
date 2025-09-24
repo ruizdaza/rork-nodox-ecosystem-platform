@@ -11,6 +11,9 @@ import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
 import { AnalyticsProvider } from "@/hooks/use-analytics";
 import { ReviewProvider } from "@/hooks/use-reviews";
 import { TransactionProvider } from "@/hooks/use-transactions";
+import { BusinessIntelligenceProvider } from "@/hooks/use-business-intelligence";
+import { AutomationProvider } from "@/hooks/use-automation";
+import { InternationalizationProvider } from "@/hooks/use-internationalization";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -34,6 +37,9 @@ function RootLayoutNav() {
       <Stack.Screen name="analytics" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="financial-dashboard" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notification-demo" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="business-intelligence" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="automation-dashboard" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="internationalization" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -52,25 +58,31 @@ export default function RootLayout() {
     <ErrorBoundary onError={handleError}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <NotificationProvider>
-            <NodoXProvider>
-              <TransactionProvider>
-                <ReviewProvider>
-                  <ChatProvider>
-                    <PremiumFeaturesProvider>
-                      <AnalyticsProvider>
-                        <GestureHandlerRootView style={styles.container}>
-                          <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
-                            <RootLayoutNav />
-                          </ErrorBoundary>
-                        </GestureHandlerRootView>
-                      </AnalyticsProvider>
-                    </PremiumFeaturesProvider>
-                  </ChatProvider>
-                </ReviewProvider>
-              </TransactionProvider>
-            </NodoXProvider>
-          </NotificationProvider>
+          <InternationalizationProvider>
+            <NotificationProvider>
+              <NodoXProvider>
+                <TransactionProvider>
+                  <ReviewProvider>
+                    <ChatProvider>
+                      <PremiumFeaturesProvider>
+                        <AnalyticsProvider>
+                          <BusinessIntelligenceProvider>
+                            <AutomationProvider>
+                              <GestureHandlerRootView style={styles.container}>
+                                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                                  <RootLayoutNav />
+                                </ErrorBoundary>
+                              </GestureHandlerRootView>
+                            </AutomationProvider>
+                          </BusinessIntelligenceProvider>
+                        </AnalyticsProvider>
+                      </PremiumFeaturesProvider>
+                    </ChatProvider>
+                  </ReviewProvider>
+                </TransactionProvider>
+              </NodoXProvider>
+            </NotificationProvider>
+          </InternationalizationProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </ErrorBoundary>
