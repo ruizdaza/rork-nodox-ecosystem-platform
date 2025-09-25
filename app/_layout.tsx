@@ -7,6 +7,7 @@ import { StyleSheet } from "react-native";
 import { NodoXProvider } from "@/hooks/use-nodox-store";
 import { ChatProvider } from "@/hooks/use-chat";
 import { NotificationProvider } from "@/hooks/use-notifications";
+import { NotificationAnalyticsProvider } from "@/hooks/use-notification-analytics";
 import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
 import { AnalyticsProvider } from "@/hooks/use-analytics";
 import { ReviewProvider } from "@/hooks/use-reviews";
@@ -37,6 +38,7 @@ function RootLayoutNav() {
       <Stack.Screen name="analytics" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="financial-dashboard" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="notification-demo" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="notification-analytics" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="business-intelligence" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="automation-dashboard" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="internationalization" options={{ headerShown: false, presentation: "modal" }} />
@@ -59,8 +61,9 @@ export default function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <InternationalizationProvider>
-            <NotificationProvider>
-              <NodoXProvider>
+            <NotificationAnalyticsProvider>
+              <NotificationProvider>
+                <NodoXProvider>
                 <TransactionProvider>
                   <ReviewProvider>
                     <ChatProvider>
@@ -80,8 +83,9 @@ export default function RootLayout() {
                     </ChatProvider>
                   </ReviewProvider>
                 </TransactionProvider>
-              </NodoXProvider>
-            </NotificationProvider>
+                </NodoXProvider>
+              </NotificationProvider>
+            </NotificationAnalyticsProvider>
           </InternationalizationProvider>
         </QueryClientProvider>
       </trpc.Provider>

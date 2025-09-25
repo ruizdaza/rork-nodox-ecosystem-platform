@@ -2,6 +2,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { useNotificationAnalytics } from './use-notification-analytics';
 
 interface NotificationData {
   id: string;
@@ -109,6 +110,9 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  
+  // Analytics integration
+  const analytics = useNotificationAnalytics();
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -145,29 +149,45 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     }
   }, []);
 
-  const markAsRead = useCallback((id: string) => {
+  const markAsRead = useCallback(async (id: string) => {
     if (!id?.trim()) return;
     const updatedNotifications = notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
+      n.id === id.trim() ? { ...n, read: true } : n
     );
     setNotifications(updatedNotifications);
-    saveNotifications(updatedNotifications);
-  }, [notifications, saveNotifications]);
+    await saveNotifications(updatedNotifications);
+    
+    // Track notification opened when marked as read
+    await analytics.trackNotificationOpened(id.trim());
+  }, [notifications, saveNotifications, analytics]);
 
-  const handleIncomingNotification = useCallback((notification: Notifications.Notification) => {
+  const handleIncomingNotification = useCallback(async (notification: Notifications.Notification) => {
     if (!notification) return;
     console.log('Handling incoming notification:', notification);
-  }, []);
+    
+    // Track notification delivered
+    const notificationId = notification.request.identifier;
+    if (notificationId) {
+      await analytics.trackNotificationDelivered(notificationId);
+    }
+  }, [analytics]);
 
-  const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
+  const handleNotificationResponse = useCallback(async (response: Notifications.NotificationResponse) => {
     if (!response) return;
     const notificationData = response.notification.request.content.data;
     console.log('User tapped notification:', notificationData);
     
+    // Track notification opened and clicked
+    const notificationId = response.notification.request.identifier;
+    if (notificationId) {
+      await analytics.trackNotificationOpened(notificationId);
+      await analytics.trackNotificationClicked(notificationId);
+    }
+    
     if (notificationData?.id && typeof notificationData.id === 'string') {
       markAsRead(notificationData.id);
     }
-  }, [markAsRead]);
+  }, [markAsRead, analytics]);
 
   const registerForPushNotificationsAsync = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -292,10 +312,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     data?: any,
     priority: 'low' | 'normal' | 'high' = 'normal'
   ) => {
+    if (!title?.trim() || !body?.trim()) return;
+    
     const notification: NotificationData = {
       id: Date.now().toString(),
-      title,
-      body,
+      title: title.trim(),
+      body: body.trim(),
       data,
       timestamp: Date.now(),
       read: false,
@@ -308,13 +330,27 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     setNotifications(updatedNotifications);
     await saveNotifications(updatedNotifications);
 
+    // Track notification sent
+    await analytics.trackNotificationSent(
+      notification.id,
+      type,
+      category,
+      {
+        title: notification.title,
+        body: notification.body,
+        priority,
+        hasAction: !!data,
+        actionType: data?.actionType
+      }
+    );
+
     if (shouldShowNotification(category)) {
       await scheduleLocalNotification(notification);
     }
 
     console.log('Notification created:', notification);
     return notification;
-  }, [notifications, saveNotifications, shouldShowNotification, scheduleLocalNotification]);
+  }, [notifications, saveNotifications, shouldShowNotification, scheduleLocalNotification, analytics]);
 
   const markAllAsRead = useCallback(() => {
     const updatedNotifications = notifications.map(n => ({ ...n, read: true }));
@@ -322,12 +358,15 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     saveNotifications(updatedNotifications);
   }, [notifications, saveNotifications]);
 
-  const deleteNotification = useCallback((id: string) => {
+  const deleteNotification = useCallback(async (id: string) => {
     if (!id?.trim()) return;
-    const updatedNotifications = notifications.filter(n => n.id !== id);
+    const updatedNotifications = notifications.filter(n => n.id !== id.trim());
     setNotifications(updatedNotifications);
-    saveNotifications(updatedNotifications);
-  }, [notifications, saveNotifications]);
+    await saveNotifications(updatedNotifications);
+    
+    // Track notification dismissed
+    await analytics.trackNotificationDismissed(id.trim());
+  }, [notifications, saveNotifications, analytics]);
 
   const clearAllNotifications = useCallback(() => {
     setNotifications([]);
