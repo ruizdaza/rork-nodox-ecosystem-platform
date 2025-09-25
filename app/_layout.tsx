@@ -42,6 +42,7 @@ function RootLayoutNav() {
       <Stack.Screen name="business-intelligence" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="automation-dashboard" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="internationalization" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="exchange-ncop" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
