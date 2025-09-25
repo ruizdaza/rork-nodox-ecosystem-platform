@@ -180,6 +180,20 @@ export function usePWA(): UsePWAReturn {
   const setupServiceWorker = async () => {
     if ('serviceWorker' in navigator) {
       try {
+        // Check if service worker file exists before registering
+        const response = await fetch('/sw.js', { method: 'HEAD' });
+        if (!response.ok || !response.headers.get('content-type')?.includes('javascript')) {
+          console.log('Service worker not available in development mode');
+          setServiceWorkerStatus({
+            isRegistered: false,
+            isActive: false,
+            isWaiting: false,
+            hasUpdate: false,
+            version: '1.0.0'
+          });
+          return;
+        }
+        
         const registration = await navigator.serviceWorker.register('/sw.js');
         
         setServiceWorkerStatus({
@@ -199,7 +213,14 @@ export function usePWA(): UsePWAReturn {
           }));
         });
       } catch (error) {
-        console.error('Service worker registration failed:', error);
+        console.log('Service worker not available:', error instanceof Error ? error.message : 'Unknown error');
+        setServiceWorkerStatus({
+          isRegistered: false,
+          isActive: false,
+          isWaiting: false,
+          hasUpdate: false,
+          version: '1.0.0'
+        });
       }
     }
   };
