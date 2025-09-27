@@ -1095,7 +1095,10 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Ofertas destacadas</Text>
-            <TouchableOpacity style={styles.seeAllButton}>
+            <TouchableOpacity 
+              style={styles.seeAllButton}
+              onPress={() => router.push('/offers')}
+            >
               <Text style={styles.seeAllText}>Ver todas</Text>
               <ChevronRight color="#64748b" size={16} />
             </TouchableOpacity>
