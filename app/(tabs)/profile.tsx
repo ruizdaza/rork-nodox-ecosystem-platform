@@ -206,89 +206,90 @@ export default function ProfileScreen() {
         </View>
 
         {/* Role Panels */}
-        {user.roles.length > 1 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mis Paneles</Text>
-            
-            {/* Panel de Aliado */}
-            {user.roles.includes("ally") && (
-              <TouchableOpacity 
-                style={styles.roleCard}
-                onPress={() => router.push('/ally-dashboard')}
-              >
-                <LinearGradient
-                  colors={["#8b5cf6", "#a855f7"]}
-                  style={styles.roleGradient}
-                >
-                  <Store color="#ffffff" size={24} />
-                  <View style={styles.roleContent}>
-                    <Text style={styles.roleTitle}>Panel de Aliado</Text>
-                    <Text style={styles.roleSubtitle}>Gestiona tu negocio</Text>
-                  </View>
-                  <ChevronRight color="#ffffff" size={20} />
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-            
-            {/* Panel Conecta */}
-            {user.roles.includes("referrer") && (
-              <TouchableOpacity 
-                style={styles.roleCard}
-                onPress={() => router.push('/referral-dashboard')}
-              >
-                <LinearGradient
-                  colors={["#f59e0b", "#d97706"]}
-                  style={styles.roleGradient}
-                >
-                  <UserPlus color="#ffffff" size={24} />
-                  <View style={styles.roleContent}>
-                    <Text style={styles.roleTitle}>NodoX Conecta</Text>
-                    <Text style={styles.roleSubtitle}>Referidos</Text>
-                  </View>
-                  <ChevronRight color="#ffffff" size={20} />
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-            
-            {/* Panel de Admin */}
-            {user.roles.includes("admin") && (
-              <TouchableOpacity 
-                style={styles.roleCard}
-                onPress={() => router.push('/admin-panel')}
-              >
-                <LinearGradient
-                  colors={["#ef4444", "#dc2626"]}
-                  style={styles.roleGradient}
-                >
-                  <Crown color="#ffffff" size={24} />
-                  <View style={styles.roleContent}>
-                    <Text style={styles.roleTitle}>Panel de Administración</Text>
-                    <Text style={styles.roleSubtitle}>Dashboard completo de administración</Text>
-                  </View>
-                  <ChevronRight color="#ffffff" size={20} />
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-            
-            {/* Dashboard Empresarial */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mis Roles y Paneles</Text>
+          
+          {/* Panel de Admin */}
+          {user.roles.includes("admin") && (
             <TouchableOpacity 
               style={styles.roleCard}
-              onPress={() => router.push('/business-dashboard')}
+              onPress={() => {
+                console.log('Navigating to admin panel...');
+                router.push('/admin-panel');
+              }}
             >
               <LinearGradient
-                colors={["#2563eb", "#1d4ed8"]}
+                colors={["#ef4444", "#dc2626"]}
                 style={styles.roleGradient}
               >
-                <Building2 color="#ffffff" size={24} />
+                <Crown color="#ffffff" size={24} />
                 <View style={styles.roleContent}>
-                  <Text style={styles.roleTitle}>Dashboard Empresarial</Text>
-                  <Text style={styles.roleSubtitle}>CRM, Promociones y Soporte</Text>
+                  <Text style={styles.roleTitle}>Panel de Administración</Text>
+                  <Text style={styles.roleSubtitle}>Dashboard completo de administración</Text>
                 </View>
                 <ChevronRight color="#ffffff" size={20} />
               </LinearGradient>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+          
+          {/* Panel de Aliado */}
+          {user.roles.includes("ally") && (
+            <TouchableOpacity 
+              style={styles.roleCard}
+              onPress={() => router.push('/ally-dashboard')}
+            >
+              <LinearGradient
+                colors={["#8b5cf6", "#a855f7"]}
+                style={styles.roleGradient}
+              >
+                <Store color="#ffffff" size={24} />
+                <View style={styles.roleContent}>
+                  <Text style={styles.roleTitle}>Panel de Aliado</Text>
+                  <Text style={styles.roleSubtitle}>Gestiona tu negocio</Text>
+                </View>
+                <ChevronRight color="#ffffff" size={20} />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+          
+          {/* Panel Conecta */}
+          {user.roles.includes("referrer") && (
+            <TouchableOpacity 
+              style={styles.roleCard}
+              onPress={() => router.push('/referral-dashboard')}
+            >
+              <LinearGradient
+                colors={["#f59e0b", "#d97706"]}
+                style={styles.roleGradient}
+              >
+                <UserPlus color="#ffffff" size={24} />
+                <View style={styles.roleContent}>
+                  <Text style={styles.roleTitle}>NodoX Conecta</Text>
+                  <Text style={styles.roleSubtitle}>Referidos</Text>
+                </View>
+                <ChevronRight color="#ffffff" size={20} />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+          
+          {/* Dashboard Empresarial - Siempre visible */}
+          <TouchableOpacity 
+            style={styles.roleCard}
+            onPress={() => router.push('/business-dashboard')}
+          >
+            <LinearGradient
+              colors={["#2563eb", "#1d4ed8"]}
+              style={styles.roleGradient}
+            >
+              <Building2 color="#ffffff" size={24} />
+              <View style={styles.roleContent}>
+                <Text style={styles.roleTitle}>Dashboard Empresarial</Text>
+                <Text style={styles.roleSubtitle}>CRM, Promociones y Soporte</Text>
+              </View>
+              <ChevronRight color="#ffffff" size={20} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
 
         {/* Menu Items */}
         <View style={styles.section}>
