@@ -95,7 +95,10 @@ const RolePanelsCard = () => {
       
       {/* Panel de Admin */}
       {user.roles.includes("admin") && (
-        <TouchableOpacity style={styles.roleCard}>
+        <TouchableOpacity 
+          style={styles.roleCard}
+          onPress={() => router.push('/admin-panel')}
+        >
           <LinearGradient
             colors={["#ef4444", "#dc2626"]}
             style={styles.roleGradient}
