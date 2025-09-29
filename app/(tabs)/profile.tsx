@@ -254,7 +254,7 @@ export default function ProfileScreen() {
             {user.roles.includes("admin") && (
               <TouchableOpacity 
                 style={styles.roleCard}
-                onPress={() => router.push('/admin-ally-requests')}
+                onPress={() => router.push('/admin-panel')}
               >
                 <LinearGradient
                   colors={["#ef4444", "#dc2626"]}
@@ -262,8 +262,8 @@ export default function ProfileScreen() {
                 >
                   <Crown color="#ffffff" size={24} />
                   <View style={styles.roleContent}>
-                    <Text style={styles.roleTitle}>Administración</Text>
-                    <Text style={styles.roleSubtitle}>Gestionar solicitudes</Text>
+                    <Text style={styles.roleTitle}>Panel de Administración</Text>
+                    <Text style={styles.roleSubtitle}>Dashboard completo de administración</Text>
                   </View>
                   <ChevronRight color="#ffffff" size={20} />
                 </LinearGradient>
