@@ -35,6 +35,7 @@ import {
   Zap,
   Server,
   Wifi,
+  Wallet,
 } from 'lucide-react-native';
 import { useAdminReports } from '@/hooks/use-admin-reports';
 import { Report, AdminStats } from '@/types/chat';
@@ -573,6 +574,20 @@ export default function AdminPanelScreen() {
           <Text style={styles.moderationButtonTitle}>Estadísticas Avanzadas</Text>
           <Text style={styles.moderationButtonSubtitle}>
             Análisis detallado de uso, engagement y métricas de negocio
+          </Text>
+        </View>
+        <ArrowLeft size={20} color="#6b7280" style={styles.rotatedArrow} />
+      </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={[styles.moderationButton, { marginTop: 12 }]}
+        onPress={() => router.push('/wallet-admin')}
+      >
+        <Wallet size={24} color="#059669" />
+        <View style={styles.moderationButtonContent}>
+          <Text style={styles.moderationButtonTitle}>Administración de Wallet</Text>
+          <Text style={styles.moderationButtonSubtitle}>
+            Gestión completa de usuarios, transacciones, balances y seguridad de wallet
           </Text>
         </View>
         <ArrowLeft size={20} color="#6b7280" style={styles.rotatedArrow} />
