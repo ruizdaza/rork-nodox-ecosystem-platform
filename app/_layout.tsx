@@ -43,6 +43,24 @@ function RootLayoutNav() {
       <Stack.Screen name="automation-dashboard" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="internationalization" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="exchange-ncop" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="contacts" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="settings" options={{ headerShown: false }} />
+      <Stack.Screen name="help-support" options={{ headerShown: false }} />
+      <Stack.Screen name="earn-points" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="cart" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="checkout" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="personalization" options={{ headerShown: false }} />
+      <Stack.Screen name="crm-dashboard" options={{ headerShown: false }} />
+      <Stack.Screen name="promotions-manager" options={{ headerShown: false }} />
+      <Stack.Screen name="support-center" options={{ headerShown: false }} />
+      <Stack.Screen name="wallet-admin" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-campaigns" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-analytics" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-materials" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-commissions" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-lead/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="referral-leads" options={{ headerShown: false }} />
     </Stack>
   );
 }

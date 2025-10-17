@@ -6,44 +6,38 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Dimensions
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { 
-  ArrowLeft, 
-  Heart, 
-  Share, 
-  Star, 
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  ArrowLeft,
+  Heart,
+  Share2,
+  Star,
   ShoppingCart,
   Truck,
-  Shield,
-  RotateCcw
+  ShieldCheck,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
-import ReviewsComponent from '@/components/ReviewsComponent';
-import { useNodoX } from '@/hooks/use-nodox-store';
 
 const { width } = Dimensions.get('window');
 
-export default function ProductScreen() {
+export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { products, addToCart } = useMarketplace();
-  const { user } = useNodoX();
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
-  const [selectedVariant, setSelectedVariant] = useState<string | undefined>();
+  const [selectedImage, setSelectedImage] = useState<number>(0);
   const [quantity, setQuantity] = useState<number>(1);
-  const [showReviews, setShowReviews] = useState<boolean>(false);
 
-  const product = products.find(p => p.id === id);
+  const product = products.find((p) => p.id === id);
 
   if (!product) {
     return (
       <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Producto no encontrado</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
@@ -55,17 +49,14 @@ export default function ProductScreen() {
   }
 
   const handleAddToCart = () => {
-    addToCart(product.id, quantity, selectedVariant);
-    // Show success message or navigate to cart
+    addToCart(product.id, quantity);
+    router.push('/cart');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
-      
-      {/* Header */}
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.headerButton}
           onPress={() => router.back()}
         >
@@ -73,185 +64,150 @@ export default function ProductScreen() {
         </TouchableOpacity>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerButton}>
-            <Share color="#64748b" size={20} />
+            <Share2 color="#1e293b" size={22} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerButton}>
-            <Heart color="#64748b" size={20} />
+            <Heart color="#1e293b" size={22} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Image Gallery */}
-        <View style={styles.imageGallery}>
-          <ScrollView 
-            horizontal 
-            pagingEnabled
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.imageSection}>
+          <Image
+            source={{ uri: product.images[selectedImage] }}
+            style={styles.mainImage}
+          />
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(event) => {
-              const index = Math.round(event.nativeEvent.contentOffset.x / width);
-              setSelectedImageIndex(index);
-            }}
+            style={styles.thumbnailScroll}
+            contentContainerStyle={styles.thumbnailContainer}
           >
             {product.images.map((image, index) => (
-              <Image 
+              <TouchableOpacity
                 key={index}
-                source={{ uri: image }} 
-                style={styles.productImage} 
-              />
+                onPress={() => setSelectedImage(index)}
+                style={[
+                  styles.thumbnail,
+                  selectedImage === index && styles.selectedThumbnail,
+                ]}
+              >
+                <Image source={{ uri: image }} style={styles.thumbnailImage} />
+              </TouchableOpacity>
             ))}
           </ScrollView>
-          <View style={styles.imageIndicators}>
-            {product.images.map((_, index) => (
-              <View 
-                key={index}
-                style={[
-                  styles.indicator,
-                  selectedImageIndex === index && styles.indicatorActive
-                ]}
-              />
-            ))}
-          </View>
         </View>
 
-        {/* Product Info */}
-        <View style={styles.productInfo}>
-          <View style={styles.productHeader}>
-            <Text style={styles.productTitle}>{product.name}</Text>
-            <View style={styles.ratingContainer}>
-              <Star color="#fbbf24" size={16} fill="#fbbf24" />
-              <Text style={styles.rating}>{product.rating}</Text>
-              <Text style={styles.reviewCount}>({product.reviewCount} reseñas)</Text>
+        <View style={styles.contentSection}>
+          <View style={styles.sellerInfo}>
+            <Image
+              source={{ uri: product.sellerAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face' }}
+              style={styles.sellerAvatar}
+            />
+            <View style={styles.sellerDetails}>
+              <Text style={styles.sellerName}>{product.sellerName}</Text>
+              <View style={styles.ratingContainer}>
+                <Star color="#fbbf24" size={14} fill="#fbbf24" />
+                <Text style={styles.rating}>{product.rating}</Text>
+                <Text style={styles.reviewCount}>({product.reviewCount} reseñas)</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.contactButton}>
+              <Text style={styles.contactButtonText}>Contactar</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.productName}>{product.name}</Text>
+          
+          <View style={styles.priceSection}>
+            <View style={styles.priceContainer}>
+              <Text style={styles.price}>${product.price.toLocaleString()}</Text>
+              <Text style={styles.ncopPrice}>{product.ncopPrice} NCOP</Text>
+            </View>
+            <View style={styles.stockBadge}>
+              <Text style={styles.stockText}>
+                {product.stock > 0 ? `Stock: ${product.stock}` : 'Agotado'}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.sellerName}>Vendido por {product.sellerName}</Text>
-
-          <View style={styles.priceContainer}>
-            <Text style={styles.price}>${product.price}</Text>
-            <Text style={styles.ncopPrice}>{product.ncopPrice} NCOP</Text>
-          </View>
-
-          {/* Variants */}
-          {product.variants && product.variants.length > 0 && (
-            <View style={styles.variantsContainer}>
-              <Text style={styles.sectionTitle}>Opciones disponibles:</Text>
-              <View style={styles.variants}>
-                {product.variants.map((variant) => (
-                  <TouchableOpacity
-                    key={variant.id}
-                    style={[
-                      styles.variantChip,
-                      selectedVariant === variant.id && styles.variantChipActive
-                    ]}
-                    onPress={() => setSelectedVariant(variant.id)}
-                  >
-                    <Text style={[
-                      styles.variantText,
-                      selectedVariant === variant.id && styles.variantTextActive
-                    ]}>
-                      {variant.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          {product.shipping && (
+            <View style={styles.shippingSection}>
+              <View style={styles.shippingItem}>
+                <Truck color="#10b981" size={20} />
+                <Text style={styles.shippingText}>
+                  {product.shipping.freeShipping
+                    ? 'Envío gratis'
+                    : `Envío: $${product.shipping.shippingCost.toLocaleString()}`}
+                </Text>
+              </View>
+              <View style={styles.shippingItem}>
+                <ShieldCheck color="#2563eb" size={20} />
+                <Text style={styles.shippingText}>
+                  Entrega estimada: {product.shipping.estimatedDays} días
+                </Text>
               </View>
             </View>
           )}
 
-          {/* Description */}
-          <View style={styles.descriptionContainer}>
+          <View style={styles.descriptionSection}>
             <Text style={styles.sectionTitle}>Descripción</Text>
             <Text style={styles.description}>{product.description}</Text>
           </View>
 
-          {/* Specifications */}
-          {product.specifications && (
-            <View style={styles.specificationsContainer}>
+          {product.specifications && Object.keys(product.specifications).length > 0 && (
+            <View style={styles.specificationsSection}>
               <Text style={styles.sectionTitle}>Especificaciones</Text>
               {Object.entries(product.specifications).map(([key, value]) => (
-                <View key={key} style={styles.specificationRow}>
-                  <Text style={styles.specificationKey}>{key}:</Text>
-                  <Text style={styles.specificationValue}>{value}</Text>
+                <View key={key} style={styles.specItem}>
+                  <Text style={styles.specKey}>{key}</Text>
+                  <Text style={styles.specValue}>{value}</Text>
                 </View>
               ))}
             </View>
           )}
 
-          {/* Shipping Info */}
-          {product.shipping && (
-            <View style={styles.shippingContainer}>
-              <Text style={styles.sectionTitle}>Información de envío</Text>
-              <View style={styles.shippingInfo}>
-                <View style={styles.shippingRow}>
-                  <Truck color="#10b981" size={16} />
-                  <Text style={styles.shippingText}>
-                    {product.shipping.freeShipping ? 'Envío gratis' : `Envío: ${product.shipping.shippingCost}`}
-                  </Text>
-                </View>
-                <View style={styles.shippingRow}>
-                  <Shield color="#3b82f6" size={16} />
-                  <Text style={styles.shippingText}>
-                    Entrega estimada: {product.shipping.estimatedDays} días
-                  </Text>
-                </View>
-                <View style={styles.shippingRow}>
-                  <RotateCcw color="#f59e0b" size={16} />
-                  <Text style={styles.shippingText}>
-                    Devoluciones gratuitas en 30 días
-                  </Text>
-                </View>
+          {product.tags && product.tags.length > 0 && (
+            <View style={styles.tagsSection}>
+              <Text style={styles.sectionTitle}>Etiquetas</Text>
+              <View style={styles.tagsContainer}>
+                {product.tags.map((tag, index) => (
+                  <View key={index} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
               </View>
-            </View>
-          )}
-
-          {/* Reviews Toggle */}
-          <TouchableOpacity 
-            style={styles.reviewsToggle}
-            onPress={() => setShowReviews(!showReviews)}
-          >
-            <Text style={styles.reviewsToggleText}>
-              {showReviews ? 'Ocultar Reseñas' : 'Ver Reseñas y Calificaciones'}
-            </Text>
-            <Star color="#fbbf24" size={16} fill="#fbbf24" />
-          </TouchableOpacity>
-
-          {/* Reviews Section */}
-          {showReviews && (
-            <View style={styles.reviewsSection}>
-              <ReviewsComponent 
-                productId={product.id}
-                sellerId={product.sellerId}
-                canReview={user.id !== product.sellerId}
-              />
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Bottom Actions */}
-      <View style={styles.bottomActions}>
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity 
+      <View style={styles.footer}>
+        <View style={styles.quantitySelector}>
+          <TouchableOpacity
             style={styles.quantityButton}
             onPress={() => setQuantity(Math.max(1, quantity - 1))}
           >
             <Text style={styles.quantityButtonText}>-</Text>
           </TouchableOpacity>
-          <Text style={styles.quantity}>{quantity}</Text>
-          <TouchableOpacity 
+          <Text style={styles.quantityText}>{quantity}</Text>
+          <TouchableOpacity
             style={styles.quantityButton}
-            onPress={() => setQuantity(quantity + 1)}
+            onPress={() => setQuantity(Math.min(product.stock, quantity + 1))}
           >
             <Text style={styles.quantityButtonText}>+</Text>
           </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.addToCartButton}
+        <TouchableOpacity
+          style={[styles.addToCartButton, product.stock === 0 && styles.disabledButton]}
           onPress={handleAddToCart}
+          disabled={product.stock === 0}
         >
           <ShoppingCart color="#ffffff" size={20} />
-          <Text style={styles.addToCartText}>Agregar al carrito</Text>
+          <Text style={styles.addToCartText}>
+            {product.stock === 0 ? 'Agotado' : 'Agregar al carrito'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -268,88 +224,116 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#f1f5f9',
   },
   headerButton: {
-    padding: 4,
+    padding: 8,
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
-  content: {
-    flex: 1,
+  imageSection: {
+    backgroundColor: '#f8fafc',
   },
-  imageGallery: {
-    position: 'relative',
-  },
-  productImage: {
+  mainImage: {
     width: width,
-    height: 300,
+    height: width,
     resizeMode: 'cover',
   },
-  imageIndicators: {
-    position: 'absolute',
-    bottom: 16,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
+  thumbnailScroll: {
+    marginVertical: 16,
   },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  thumbnailContainer: {
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  indicatorActive: {
-    backgroundColor: '#ffffff',
+  thumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    overflow: 'hidden',
   },
-  productInfo: {
+  selectedThumbnail: {
+    borderColor: '#2563eb',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  contentSection: {
     padding: 20,
   },
-  productHeader: {
-    marginBottom: 8,
+  sellerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  productTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  sellerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  sellerDetails: {
+    flex: 1,
+  },
+  sellerName: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 8,
-    lineHeight: 30,
+    marginBottom: 4,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   rating: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  reviewCount: {
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '500',
     color: '#64748b',
   },
-  sellerName: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '500',
-    marginBottom: 16,
+  reviewCount: {
+    fontSize: 12,
+    color: '#94a3b8',
   },
-  priceContainer: {
+  contactButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#eff6ff',
+    borderRadius: 6,
+  },
+  contactButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  productName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 16,
+    lineHeight: 32,
+  },
+  priceSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#e2e8f0',
+    marginBottom: 20,
+  },
+  priceContainer: {
+    gap: 4,
   },
   price: {
     fontSize: 28,
@@ -357,11 +341,38 @@ const styles = StyleSheet.create({
     color: '#1e293b',
   },
   ncopPrice: {
-    fontSize: 18,
-    color: '#2563eb',
+    fontSize: 16,
     fontWeight: '600',
+    color: '#2563eb',
   },
-  variantsContainer: {
+  stockBadge: {
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  stockText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#16a34a',
+  },
+  shippingSection: {
+    backgroundColor: '#f8fafc',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 12,
+  },
+  shippingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  shippingText: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  descriptionSection: {
     marginBottom: 24,
   },
   sectionTitle: {
@@ -370,90 +381,63 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 12,
   },
-  variants: {
+  description: {
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 24,
+  },
+  specificationsSection: {
+    marginBottom: 24,
+  },
+  specItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  specKey: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  specValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  tagsSection: {
+    marginBottom: 24,
+  },
+  tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  variantChip: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+  tag: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  variantChipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  variantText: {
-    fontSize: 14,
+  tagText: {
+    fontSize: 12,
+    color: '#2563eb',
     fontWeight: '500',
-    color: '#64748b',
   },
-  variantTextActive: {
-    color: '#ffffff',
-  },
-  descriptionContainer: {
-    marginBottom: 24,
-  },
-  description: {
-    fontSize: 16,
-    color: '#374151',
-    lineHeight: 24,
-  },
-  specificationsContainer: {
-    marginBottom: 24,
-  },
-  specificationRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  specificationKey: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#64748b',
-    flex: 1,
-  },
-  specificationValue: {
-    fontSize: 14,
-    color: '#1e293b',
-    flex: 2,
-    textAlign: 'right',
-  },
-  shippingContainer: {
-    marginBottom: 24,
-  },
-  shippingInfo: {
-    gap: 12,
-  },
-  shippingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  shippingText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  bottomActions: {
+  footer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
+    gap: 12,
     backgroundColor: '#ffffff',
-    gap: 16,
   },
-  quantityContainer: {
+  quantitySelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     borderRadius: 8,
     padding: 4,
   },
@@ -467,14 +451,16 @@ const styles = StyleSheet.create({
   },
   quantityButtonText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#1e293b',
   },
-  quantity: {
+  quantityText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1e293b',
-    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    minWidth: 24,
+    textAlign: 'center',
   },
   addToCartButton: {
     flex: 1,
@@ -486,10 +472,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
+  disabledButton: {
+    backgroundColor: '#94a3b8',
+  },
   addToCartText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+    color: '#ffffff',
   },
   errorContainer: {
     flex: 1,
@@ -503,37 +492,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#2563eb',
     paddingHorizontal: 24,
     paddingVertical: 12,
+    backgroundColor: '#2563eb',
     borderRadius: 8,
   },
   backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  reviewsToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  reviewsToggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  reviewsSection: {
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-    paddingTop: 16,
   },
 });

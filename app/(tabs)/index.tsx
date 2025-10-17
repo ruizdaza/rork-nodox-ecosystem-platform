@@ -118,7 +118,10 @@ const RolePanelsCard = () => {
         <Text style={styles.requestRolesTitle}>¿Quieres acceder a más funciones?</Text>
         
         {!user.roles.includes("ally") && (
-          <TouchableOpacity style={styles.requestButton}>
+          <TouchableOpacity 
+            style={styles.requestButton}
+            onPress={() => router.push('/ally-request')}
+          >
             <Store color="#8b5cf6" size={20} />
             <Text style={styles.requestButtonText}>Solicitar Panel de Aliado</Text>
             <ChevronRight color="#64748b" size={16} />
@@ -1100,7 +1103,7 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Ofertas destacadas</Text>
             <TouchableOpacity 
               style={styles.seeAllButton}
-              onPress={() => router.push('/offers')}
+              onPress={() => router.push('/(tabs)/offers')}
             >
               <Text style={styles.seeAllText}>Ver todas</Text>
               <ChevronRight color="#64748b" size={16} />
