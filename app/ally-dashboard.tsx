@@ -1041,20 +1041,46 @@ export default function AllyDashboard() {
     <ScrollView style={styles.content}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Gestión de Personal</Text>
-        <TouchableOpacity style={styles.addButton}>
-          <Text style={styles.addButtonText}>+ Agregar Personal</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/hr-management')}
+        >
+          <Text style={styles.addButtonText}>Ver Sistema Completo</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* HR Info Card */}
+      <View style={styles.section}>
+        <View style={styles.crmInfoCard}>
+          <Users color="#ea580c" size={32} />
+          <Text style={styles.crmInfoTitle}>Sistema de Gestión de Personal</Text>
+          <Text style={styles.crmInfoText}>
+            • Gestión de empleados{"\n"}
+            • Control de asistencia{"\n"}
+            • Evaluaciones de desempeño{"\n"}
+            • Nómina y pagos{"\n"}
+            • Horarios y turnos{"\n"}
+            • Departamentos y estructura organizacional
+          </Text>
+          <TouchableOpacity 
+            style={styles.primaryActionButton}
+            onPress={() => router.push('/hr-management')}
+          >
+            <Text style={styles.primaryActionButtonText}>Abrir Gestión de Personal</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Staff List */}
       <View style={styles.section}>
+        <Text style={styles.subsectionTitle}>Personal del Negocio</Text>
         {services.flatMap(service => service.staff).map((staff) => (
           <View key={staff.id} style={styles.staffCard}>
             <View style={styles.staffInfo}>
               <View style={styles.staffAvatar}>
                 {staff.avatar ? (
                   <Text style={styles.staffInitials}>
-                    {staff.name.split(' ').map(n => n[0]).join('')}
+                    {staff.name.split(' ').map((n: string) => n[0]).join('')}
                   </Text>
                 ) : (
                   <Users color="#64748b" size={24} />

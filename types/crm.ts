@@ -1,3 +1,114 @@
+export type Employee = {
+  id: string;
+  userId?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  position: string;
+  department: string;
+  hireDate: string;
+  status: 'active' | 'inactive' | 'on_leave' | 'terminated';
+  salary: number;
+  currency: string;
+  employmentType: 'full_time' | 'part_time' | 'contractor' | 'intern';
+  schedule: {
+    monday?: { start: string; end: string };
+    tuesday?: { start: string; end: string };
+    wednesday?: { start: string; end: string };
+    thursday?: { start: string; end: string };
+    friday?: { start: string; end: string };
+    saturday?: { start: string; end: string };
+    sunday?: { start: string; end: string };
+  };
+  permissions: string[];
+  documents: {
+    id: string;
+    name: string;
+    type: string;
+    url: string;
+    uploadDate: string;
+  }[];
+  emergencyContact: {
+    name: string;
+    relationship: string;
+    phone: string;
+  };
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EmployeeEvaluation = {
+  id: string;
+  employeeId: string;
+  evaluatorId: string;
+  evaluatorName: string;
+  period: string;
+  date: string;
+  categories: {
+    name: string;
+    score: number;
+    maxScore: number;
+    comments: string;
+  }[];
+  overallScore: number;
+  strengths: string[];
+  areasForImprovement: string[];
+  goals: string[];
+  comments: string;
+  status: 'draft' | 'completed' | 'reviewed';
+  createdAt: string;
+};
+
+export type PayrollRecord = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  period: string;
+  startDate: string;
+  endDate: string;
+  baseSalary: number;
+  bonuses: { description: string; amount: number }[];
+  deductions: { description: string; amount: number }[];
+  overtime: { hours: number; rate: number; amount: number };
+  totalEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+  currency: string;
+  status: 'pending' | 'approved' | 'paid';
+  paymentDate?: string;
+  paymentMethod: string;
+  notes: string;
+  createdAt: string;
+};
+
+export type TimeEntry = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  clockIn: string;
+  clockOut?: string;
+  breakDuration: number;
+  totalHours?: number;
+  status: 'active' | 'completed' | 'approved';
+  notes: string;
+  location?: { lat: number; lng: number };
+};
+
+export type Department = {
+  id: string;
+  name: string;
+  description: string;
+  managerId?: string;
+  managerName?: string;
+  employeeCount: number;
+  budget: number;
+  currency: string;
+  createdAt: string;
+};
+
 export interface Customer {
   id: string;
   name: string;
