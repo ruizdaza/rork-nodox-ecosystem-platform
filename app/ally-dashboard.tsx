@@ -77,6 +77,9 @@ type AllyView =
   | "pos" 
   | "analytics" 
   | "marketing" 
+  | "crm"
+  | "erp"
+  | "cms"
   | "settings";
 
 export default function AllyDashboard() {
@@ -117,9 +120,12 @@ export default function AllyDashboard() {
     { id: "services", icon: Stethoscope, title: "Servicios", color: "#7c3aed" },
     { id: "appointments", icon: Calendar, title: "Citas", color: "#dc2626" },
     { id: "staff", icon: Users, title: "Personal", color: "#ea580c" },
+    { id: "crm", icon: Users, title: "CRM Clientes", color: "#0891b2" },
+    { id: "erp", icon: Package, title: "ERP Sistema", color: "#059669" },
     { id: "pos", icon: CreditCard, title: "Terminal POS", color: "#0891b2" },
     { id: "analytics", icon: BarChart3, title: "Analíticas", color: "#7c2d12" },
     { id: "marketing", icon: Megaphone, title: "Marketing", color: "#be185d" },
+    { id: "cms", icon: FileText, title: "CMS Contenido", color: "#7c3aed" },
     { id: "settings", icon: Settings, title: "Configuración", color: "#374151" },
   ];
 
@@ -1592,6 +1598,203 @@ export default function AllyDashboard() {
     );
   };
 
+  const renderCRM = () => (
+    <ScrollView style={styles.content}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>CRM - Gestión de Clientes</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/crm-dashboard')}
+        >
+          <Text style={styles.addButtonText}>Ver CRM Completo</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.subsectionTitle}>Panel de CRM Integrado</Text>
+        <View style={styles.crmInfoCard}>
+          <Users color="#0891b2" size={32} />
+          <Text style={styles.crmInfoTitle}>Sistema CRM Completo</Text>
+          <Text style={styles.crmInfoText}>
+            • Gestión completa de clientes{"\n"}
+            • Historial de interacciones{"\n"}
+            • Segmentación de clientes{"\n"}
+            • Seguimiento de oportunidades{"\n"}
+            • Automatización de marketing{"\n"}
+            • Análisis de satisfacción
+          </Text>
+          <TouchableOpacity 
+            style={styles.primaryActionButton}
+            onPress={() => router.push('/crm-dashboard')}
+          >
+            <Text style={styles.primaryActionButtonText}>Abrir CRM Completo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
+  const renderERP = () => (
+    <ScrollView style={styles.content}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>ERP - Sistema Empresarial</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.subsectionTitle}>Módulos ERP Disponibles</Text>
+        
+        <View style={styles.erpModulesGrid}>
+          <View style={styles.erpModuleCard}>
+            <Package color="#059669" size={32} />
+            <Text style={styles.erpModuleTitle}>Inventario</Text>
+            <Text style={styles.erpModuleDescription}>
+              Control de stock, alertas de bajo inventario, movimientos
+            </Text>
+            <Text style={styles.erpModuleStatus}>✓ Activo</Text>
+          </View>
+
+          <View style={styles.erpModuleCard}>
+            <Users color="#2563eb" size={32} />
+            <Text style={styles.erpModuleTitle}>Proveedores</Text>
+            <Text style={styles.erpModuleDescription}>
+              Gestión de proveedores, órdenes de compra, pagos
+            </Text>
+            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
+          </View>
+
+          <View style={styles.erpModuleCard}>
+            <Receipt color="#7c3aed" size={32} />
+            <Text style={styles.erpModuleTitle}>Compras</Text>
+            <Text style={styles.erpModuleDescription}>
+              Órdenes de compra, recepción, facturación
+            </Text>
+            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
+          </View>
+
+          <View style={styles.erpModuleCard}>
+            <Calculator color="#ea580c" size={32} />
+            <Text style={styles.erpModuleTitle}>Contabilidad</Text>
+            <Text style={styles.erpModuleDescription}>
+              Libro diario, balance, estados financieros
+            </Text>
+            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
+          </View>
+        </View>
+
+        <View style={styles.erpStatsSection}>
+          <Text style={styles.subsectionTitle}>Inventario Actual</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{products.filter(p => !p.isService).length}</Text>
+              <Text style={styles.statLabel}>Productos</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>
+                {products.filter(p => !p.isService).reduce((sum, p) => sum + (p.stock || 0), 0)}
+              </Text>
+              <Text style={styles.statLabel}>Unidades en stock</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>
+                {products.filter(p => !p.isService && (p.stock || 0) < 5).length}
+              </Text>
+              <Text style={styles.statLabel}>Stock bajo</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>$
+                {products.filter(p => !p.isService).reduce((sum, p) => sum + (p.price * (p.stock || 0)), 0).toLocaleString()}
+              </Text>
+              <Text style={styles.statLabel}>Valor inventario</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
+  const renderCMS = () => (
+    <ScrollView style={styles.content}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>CMS - Gestión de Contenido</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.subsectionTitle}>Gestión de Contenido del Negocio</Text>
+        
+        <View style={styles.cmsModulesGrid}>
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <Store color="#2563eb" size={32} />
+            <Text style={styles.cmsModuleTitle}>Perfil del Negocio</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Información, horarios, ubicación, imágenes
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <Image color="#059669" size={32} />
+            <Text style={styles.cmsModuleTitle}>Galería</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Fotos de trabajos, instalaciones, equipo
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <Star color="#7c3aed" size={32} />
+            <Text style={styles.cmsModuleTitle}>Reseñas</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Gestión de reseñas y testimonios
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <FileText color="#ea580c" size={32} />
+            <Text style={styles.cmsModuleTitle}>Blog/Noticias</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Artículos, promociones, novedades
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <Tag color="#dc2626" size={32} />
+            <Text style={styles.cmsModuleTitle}>Promociones</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Ofertas especiales y descuentos
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cmsModuleCard}>
+            <Settings color="#64748b" size={32} />
+            <Text style={styles.cmsModuleTitle}>Configuración</Text>
+            <Text style={styles.cmsModuleDescription}>
+              Ajustes generales del perfil público
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cmsPreviewSection}>
+          <Text style={styles.subsectionTitle}>Vista Previa del Perfil</Text>
+          <View style={styles.cmsPreviewCard}>
+            <View style={styles.businessHeader}>
+              <View style={styles.businessInfo}>
+                <Store color="#2563eb" size={24} />
+                <View style={styles.businessDetails}>
+                  <Text style={styles.businessName}>Clínica Dental Sonrisa</Text>
+                  <Text style={styles.businessCategory}>Servicios Médicos</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.cmsPreviewText}>
+              Tu perfil público es visible para todos los usuarios de NodoX
+            </Text>
+            <TouchableOpacity style={styles.secondaryActionButton}>
+              <Text style={styles.secondaryActionButtonText}>Ver Perfil Público</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
   const renderContent = () => {
     switch (currentView) {
       case "overview":
@@ -1604,10 +1807,16 @@ export default function AllyDashboard() {
         return renderStaff();
       case "products":
         return renderProducts();
+      case "crm":
+        return renderCRM();
+      case "erp":
+        return renderERP();
       case "pos":
         return renderPOS();
       case "analytics":
         return renderAnalytics();
+      case "cms":
+        return renderCMS();
       case "marketing":
         return (
           <View style={styles.comingSoon}>
@@ -3769,5 +3978,155 @@ const styles = StyleSheet.create({
   analyticsScheduleAppointments: {
     fontSize: 9,
     color: "#94a3b8",
+  },
+  // CRM Styles
+  crmInfoCard: {
+    backgroundColor: "#ffffff",
+    padding: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  crmInfoTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b",
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  crmInfoText: {
+    fontSize: 14,
+    color: "#64748b",
+    lineHeight: 22,
+    marginBottom: 20,
+    textAlign: "left",
+  },
+  primaryActionButton: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 200,
+  },
+  primaryActionButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  secondaryActionButton: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  secondaryActionButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#475569",
+    textAlign: "center",
+  },
+  // ERP Styles
+  erpModulesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 24,
+  },
+  erpModuleCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: "48%",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  erpModuleTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginTop: 12,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  erpModuleDescription: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  erpModuleStatus: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#059669",
+  },
+  erpStatsSection: {
+    marginTop: 24,
+  },
+  // CMS Styles
+  cmsModulesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 24,
+  },
+  cmsModuleCard: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+    minWidth: "48%",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cmsModuleTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginTop: 12,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  cmsModuleDescription: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  cmsPreviewSection: {
+    marginTop: 24,
+  },
+  cmsPreviewCard: {
+    backgroundColor: "#ffffff",
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  cmsPreviewText: {
+    fontSize: 14,
+    color: "#64748b",
+    marginVertical: 16,
+    textAlign: "center",
   },
 });
