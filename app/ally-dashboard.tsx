@@ -63,6 +63,7 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
+  Plug,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 import NodoXLogo from "@/components/NodoXLogo";
@@ -80,6 +81,8 @@ type AllyView =
   | "crm"
   | "erp"
   | "cms"
+  | "integrations"
+  | "invoicing"
   | "settings";
 
 export default function AllyDashboard() {
@@ -124,6 +127,8 @@ export default function AllyDashboard() {
     { id: "erp", icon: Package, title: "ERP Sistema", color: "#059669" },
     { id: "pos", icon: CreditCard, title: "Terminal POS", color: "#0891b2" },
     { id: "analytics", icon: BarChart3, title: "Analíticas", color: "#7c2d12" },
+    { id: "invoicing", icon: Receipt, title: "Facturación Electrónica", color: "#059669" },
+    { id: "integrations", icon: Plug, title: "Integraciones", color: "#2563eb" },
     { id: "marketing", icon: Megaphone, title: "Marketing", color: "#be185d" },
     { id: "cms", icon: FileText, title: "CMS Contenido", color: "#7c3aed" },
     { id: "settings", icon: Settings, title: "Configuración", color: "#374151" },
@@ -1872,6 +1877,57 @@ export default function AllyDashboard() {
         return renderAnalytics();
       case "cms":
         return renderCMS();
+      case "integrations":
+        return (
+          <ScrollView style={styles.content}>
+            <View style={styles.section}>
+              <View style={styles.crmInfoCard}>
+                <Plug color="#2563eb" size={32} />
+                <Text style={styles.crmInfoTitle}>Integraciones Externas</Text>
+                <Text style={styles.crmInfoText}>
+                  • Pagos: Stripe, MercadoPago{"\n"}
+                  • Contabilidad: QuickBooks{"\n"}
+                  • Marketing: Mailchimp, WhatsApp{"\n"}
+                  • Analíticas: Google Analytics{"\n"}
+                  • CRM: Salesforce{"\n"}
+                  • ERP: SAP Business One
+                </Text>
+                <TouchableOpacity 
+                  style={styles.primaryActionButton}
+                  onPress={() => router.push('/integrations')}
+                >
+                  <Text style={styles.primaryActionButtonText}>Gestionar Integraciones</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        );
+      case "invoicing":
+        return (
+          <ScrollView style={styles.content}>
+            <View style={styles.section}>
+              <View style={styles.crmInfoCard}>
+                <Receipt color="#059669" size={32} />
+                <Text style={styles.crmInfoTitle}>Facturación Electrónica</Text>
+                <Text style={styles.crmInfoText}>
+                  • Facturas electrónicas válidas{"\n"}
+                  • CAE automático{"\n"}
+                  • Código QR y PDF{"\n"}
+                  • Envío por email{"\n"}
+                  • Reportes fiscales{"\n"}
+                  • Multi-moneda{"\n"}
+                  • Integración con AFIP
+                </Text>
+                <TouchableOpacity 
+                  style={styles.primaryActionButton}
+                  onPress={() => router.push('/electronic-invoicing')}
+                >
+                  <Text style={styles.primaryActionButtonText}>Gestionar Facturas</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        );
       case "marketing":
         return (
           <View style={styles.comingSoon}>
