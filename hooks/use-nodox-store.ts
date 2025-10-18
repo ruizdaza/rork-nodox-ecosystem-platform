@@ -459,6 +459,19 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     console.log('Product deleted:', id);
   };
 
+  const addAppointment = (appointmentData: Omit<Appointment, 'id' | 'clientId' | 'amount'>) => {
+    const service = services.find(s => s.id === appointmentData.serviceId);
+    const newAppointment: Appointment = {
+      ...appointmentData,
+      id: Date.now().toString(),
+      clientId: user.id,
+      amount: service?.price || 0,
+    };
+    
+    setAppointments(prev => [...prev, newAppointment]);
+    console.log('Appointment added:', newAppointment);
+  };
+
   const updateAppointmentStatus = async (id: string, status: Appointment["status"]) => {
     const appointment = appointments.find(a => a.id === id);
     if (!appointment) return;
@@ -853,6 +866,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     updateService,
     deleteService,
     addStaffMember,
+    addAppointment,
     updateAppointmentStatus,
     activateCampaign,
     generateAdCopy,

@@ -6,6 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  Modal,
+  TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
@@ -13,14 +16,11 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
-  User,
-  Phone,
-  Mail,
-  MapPin,
   CheckCircle,
   XCircle,
   RotateCcw,
   Plus,
+  X,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
 
@@ -28,9 +28,22 @@ type CalendarView = "day" | "week" | "month";
 
 export default function AppointmentCalendarScreen() {
   const router = useRouter();
-  const { services, appointments, updateAppointmentStatus } = useNodoX();
+  const { services, appointments, updateAppointmentStatus, addAppointment } = useNodoX();
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [calendarView, setCalendarView] = useState<CalendarView>("day");
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState<boolean>(false);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("");
+  const [newAppointment, setNewAppointment] = useState<{
+    clientName: string;
+    serviceId: string;
+    staffId: string;
+    notes: string;
+  }>({
+    clientName: "",
+    serviceId: "",
+    staffId: "",
+    notes: ""
+  });
 
   const timeSlots = [
     "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
@@ -51,14 +64,52 @@ export default function AppointmentCalendarScreen() {
     switch (action) {
       case "confirm":
         updateAppointmentStatus(appointmentId, "confirmed");
+        Alert.alert("Éxito", "Cita confirmada correctamente");
         break;
       case "cancel":
-        updateAppointmentStatus(appointmentId, "cancelled");
+        Alert.alert(
+          "Cancelar Cita",
+          "¿Está seguro que desea cancelar esta cita?",
+          [
+            { text: "No", style: "cancel" },
+            { text: "Sí, Cancelar", onPress: () => {
+              updateAppointmentStatus(appointmentId, "cancelled");
+              Alert.alert("Cita Cancelada", "La cita ha sido cancelada");
+            }}
+          ]
+        );
         break;
       case "reschedule":
-        console.log("Reschedule appointment:", appointmentId);
+        Alert.alert("Reprogramar Cita", "Seleccione un nuevo horario en el calendario");
         break;
     }
+  };
+
+  const handleCreateAppointment = () => {
+    if (!newAppointment.clientName || !newAppointment.serviceId || !newAppointment.staffId || !selectedTimeSlot) {
+      Alert.alert("Error", "Por favor complete todos los campos requeridos");
+      return;
+    }
+
+    addAppointment({
+      clientName: newAppointment.clientName,
+      serviceId: newAppointment.serviceId,
+      staffId: newAppointment.staffId,
+      date: selectedDate,
+      time: selectedTimeSlot,
+      status: "pending",
+      notes: newAppointment.notes
+    });
+
+    Alert.alert("Éxito", "Cita creada correctamente");
+    setShowNewAppointmentModal(false);
+    setNewAppointment({ clientName: "", serviceId: "", staffId: "", notes: "" });
+    setSelectedTimeSlot("");
+  };
+
+  const openNewAppointmentModal = (timeSlot: string) => {
+    setSelectedTimeSlot(timeSlot);
+    setShowNewAppointmentModal(true);
   };
 
   const renderTimeSlot = ({ item: time }: { item: string }) => {
@@ -121,7 +172,10 @@ export default function AppointmentCalendarScreen() {
               </View>
             </View>
           ) : (
-            <TouchableOpacity style={styles.emptySlot}>
+            <TouchableOpacity 
+              style={styles.emptySlot}
+              onPress={() => openNewAppointmentModal(time)}
+            >
               <Plus color="#94a3b8" size={20} />
               <Text style={styles.emptySlotText}>Disponible</Text>
             </TouchableOpacity>
@@ -220,7 +274,10 @@ export default function AppointmentCalendarScreen() {
             </TouchableOpacity>
           ),
           headerRight: () => (
-            <TouchableOpacity style={styles.addAppointmentButton}>
+            <TouchableOpacity 
+              style={styles.addAppointmentButton}
+              onPress={() => setShowNewAppointmentModal(true)}
+            >
               <Plus color="#2563eb" size={20} />
               <Text style={styles.addAppointmentText}>Nueva Cita</Text>
             </TouchableOpacity>
@@ -263,6 +320,125 @@ export default function AppointmentCalendarScreen() {
           </View>
         )}
       </View>
+
+      {/* New Appointment Modal */}
+      <Modal
+        visible={showNewAppointmentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowNewAppointmentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Nueva Cita</Text>
+              <TouchableOpacity onPress={() => setShowNewAppointmentModal(false)}>
+                <X color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.modalLabel}>Fecha y Hora</Text>
+              <View style={styles.modalInfoBox}>
+                <Calendar color="#2563eb" size={16} />
+                <Text style={styles.modalInfoText}>
+                  {new Date(selectedDate).toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+              </View>
+              {selectedTimeSlot && (
+                <View style={styles.modalInfoBox}>
+                  <Clock color="#2563eb" size={16} />
+                  <Text style={styles.modalInfoText}>{selectedTimeSlot}</Text>
+                </View>
+              )}
+
+              <Text style={styles.modalLabel}>Nombre del Cliente *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ej: Juan Pérez"
+                value={newAppointment.clientName}
+                onChangeText={(text) => setNewAppointment({ ...newAppointment, clientName: text })}
+              />
+
+              <Text style={styles.modalLabel}>Servicio *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceSelector}>
+                {services.map((service) => (
+                  <TouchableOpacity
+                    key={service.id}
+                    style={[
+                      styles.servicePill,
+                      newAppointment.serviceId === service.id && styles.servicePillActive
+                    ]}
+                    onPress={() => setNewAppointment({ ...newAppointment, serviceId: service.id, staffId: "" })}
+                  >
+                    <Text style={[
+                      styles.servicePillText,
+                      newAppointment.serviceId === service.id && styles.servicePillTextActive
+                    ]}>
+                      {service.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {newAppointment.serviceId && (
+                <>
+                  <Text style={styles.modalLabel}>Profesional *</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceSelector}>
+                    {services.find(s => s.id === newAppointment.serviceId)?.staff.map((staff) => (
+                      <TouchableOpacity
+                        key={staff.id}
+                        style={[
+                          styles.servicePill,
+                          newAppointment.staffId === staff.id && styles.servicePillActive
+                        ]}
+                        onPress={() => setNewAppointment({ ...newAppointment, staffId: staff.id })}
+                      >
+                        <Text style={[
+                          styles.servicePillText,
+                          newAppointment.staffId === staff.id && styles.servicePillTextActive
+                        ]}>
+                          {staff.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              <Text style={styles.modalLabel}>Notas (Opcional)</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalTextArea]}
+                placeholder="Agregue notas adicionales sobre la cita..."
+                value={newAppointment.notes}
+                onChangeText={(text) => setNewAppointment({ ...newAppointment, notes: text })}
+                multiline
+                numberOfLines={4}
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowNewAppointmentModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmButton}
+                onPress={handleCreateAppointment}
+              >
+                <Text style={styles.modalConfirmButtonText}>Crear Cita</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -507,5 +683,128 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#94a3b8",
     textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "90%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1e293b",
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: "#1e293b",
+  },
+  modalTextArea: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+  modalInfoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 8,
+  },
+  modalInfoText: {
+    fontSize: 14,
+    color: "#1e293b",
+    textTransform: "capitalize",
+    flex: 1,
+  },
+  serviceSelector: {
+    marginBottom: 8,
+  },
+  servicePill: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  servicePillActive: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
+  },
+  servicePillText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#64748b",
+  },
+  servicePillTextActive: {
+    color: "#2563eb",
+  },
+  modalFooter: {
+    flexDirection: "row",
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  modalConfirmButton: {
+    flex: 1,
+    backgroundColor: "#2563eb",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalConfirmButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
   },
 });
