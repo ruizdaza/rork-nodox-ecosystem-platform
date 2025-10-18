@@ -1664,6 +1664,35 @@ export default function AllyDashboard() {
     <ScrollView style={styles.content}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>ERP - Sistema Empresarial</Text>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={() => router.push('/erp-inventory')}
+        >
+          <Text style={styles.addButtonText}>Abrir ERP Completo</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.crmInfoCard}>
+          <Package color="#059669" size={32} />
+          <Text style={styles.crmInfoTitle}>Sistema ERP Completo</Text>
+          <Text style={styles.crmInfoText}>
+            • Gestión completa de inventario{"\n"}
+            • Control de stock y alertas{"\n"}
+            • Gestión de proveedores{"\n"}
+            • Órdenes de compra{"\n"}
+            • Movimientos de inventario{"\n"}
+            • Recepción de mercancía{"\n"}
+            • Reportes y analíticas{"\n"}
+            • Valoración de inventario
+          </Text>
+          <TouchableOpacity 
+            style={styles.primaryActionButton}
+            onPress={() => router.push('/erp-inventory')}
+          >
+            <Text style={styles.primaryActionButtonText}>Abrir Sistema ERP</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -1685,7 +1714,7 @@ export default function AllyDashboard() {
             <Text style={styles.erpModuleDescription}>
               Gestión de proveedores, órdenes de compra, pagos
             </Text>
-            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
+            <Text style={styles.erpModuleStatus}>✓ Activo</Text>
           </View>
 
           <View style={styles.erpModuleCard}>
@@ -1694,7 +1723,7 @@ export default function AllyDashboard() {
             <Text style={styles.erpModuleDescription}>
               Órdenes de compra, recepción, facturación
             </Text>
-            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
+            <Text style={styles.erpModuleStatus}>✓ Activo</Text>
           </View>
 
           <View style={styles.erpModuleCard}>
