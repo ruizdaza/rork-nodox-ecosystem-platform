@@ -592,6 +592,20 @@ export default function AdminPanelScreen() {
         </View>
         <ArrowLeft size={20} color="#6b7280" style={styles.rotatedArrow} />
       </TouchableOpacity>
+      
+      <TouchableOpacity
+        style={[styles.moderationButton, { marginTop: 12 }]}
+        onPress={() => router.push('/business-dashboard')}
+      >
+        <BarChart3 size={24} color="#7c3aed" />
+        <View style={styles.moderationButtonContent}>
+          <Text style={styles.moderationButtonTitle}>Dashboard Empresarial</Text>
+          <Text style={styles.moderationButtonSubtitle}>
+            Acceso rápido a CRM, Promociones, Soporte y Analytics del negocio
+          </Text>
+        </View>
+        <ArrowLeft size={20} color="#6b7280" style={styles.rotatedArrow} />
+      </TouchableOpacity>
     </ScrollView>
   );
 
