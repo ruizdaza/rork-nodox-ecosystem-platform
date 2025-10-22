@@ -162,7 +162,7 @@ export interface BulkMessagingStats {
   };
   subscription: {
     plan: string;
-    status: 'active' | 'trial' | 'suspended';
+    status: 'active' | 'trial' | 'suspended' | 'cancelled';
     messagesRemaining: number;
     renewalDate: Date;
     billingAmount: number;
