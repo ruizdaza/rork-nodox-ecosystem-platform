@@ -15,6 +15,7 @@ import { TransactionProvider } from "@/hooks/use-transactions";
 import { BusinessIntelligenceProvider } from "@/hooks/use-business-intelligence";
 import { AutomationProvider } from "@/hooks/use-automation";
 import { InternationalizationProvider } from "@/hooks/use-internationalization";
+import { BulkMessagingProvider } from "@/hooks/use-bulk-messaging";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -61,6 +62,9 @@ function RootLayoutNav() {
       <Stack.Screen name="referral-commissions" options={{ headerShown: false }} />
       <Stack.Screen name="referral-lead/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="referral-leads" options={{ headerShown: false }} />
+      <Stack.Screen name="bulk-messaging" options={{ headerShown: false }} />
+      <Stack.Screen name="bulk-messaging-campaign" options={{ headerShown: false }} />
+      <Stack.Screen name="bulk-messaging-analytics" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -86,19 +90,21 @@ export default function RootLayout() {
                 <TransactionProvider>
                   <ReviewProvider>
                     <ChatProvider>
-                      <PremiumFeaturesProvider>
-                        <AnalyticsProvider>
-                          <BusinessIntelligenceProvider>
-                            <AutomationProvider>
+                      <BulkMessagingProvider>
+                        <PremiumFeaturesProvider>
+                          <AnalyticsProvider>
+                            <BusinessIntelligenceProvider>
+                              <AutomationProvider>
                               <GestureHandlerRootView style={styles.container}>
                                 <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
                                   <RootLayoutNav />
                                 </ErrorBoundary>
                               </GestureHandlerRootView>
-                            </AutomationProvider>
-                          </BusinessIntelligenceProvider>
-                        </AnalyticsProvider>
-                      </PremiumFeaturesProvider>
+                              </AutomationProvider>
+                            </BusinessIntelligenceProvider>
+                          </AnalyticsProvider>
+                        </PremiumFeaturesProvider>
+                      </BulkMessagingProvider>
                     </ChatProvider>
                   </ReviewProvider>
                 </TransactionProvider>

@@ -32,7 +32,7 @@ export interface BulkMessagingSubscription {
   allyId: string;
   allyName: string;
   plan: BulkMessagingPlan;
-  status: 'active' | 'suspended' | 'cancelled' | 'trial';
+  status: 'active' | 'suspended' | 'trial';
   billingCycle: 'monthly' | 'yearly';
   startDate: Date;
   renewalDate: Date;
@@ -162,7 +162,7 @@ export interface BulkMessagingStats {
   };
   subscription: {
     plan: string;
-    status: 'active' | 'trial' | 'suspended' | 'cancelled';
+    status: 'active' | 'trial' | 'suspended';
     messagesRemaining: number;
     renewalDate: Date;
     billingAmount: number;
