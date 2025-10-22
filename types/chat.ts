@@ -32,12 +32,19 @@ export interface Contact {
   isFavorite: boolean;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+  timestamp: Date;
+}
+
 export interface Message {
   id: string;
   chatId: string;
   senderId: string;
   content: string;
-  type: 'text' | 'image' | 'audio' | 'file' | 'video_call' | 'scheduled';
+  type: 'text' | 'image' | 'audio' | 'file' | 'video_call' | 'voice_call' | 'scheduled' | 'location' | 'voice';
   timestamp: Date;
   isRead: boolean;
   replyTo?: string;
@@ -52,7 +59,26 @@ export interface Message {
   fileSize?: number;
   fileName?: string;
   mimeType?: string;
-  duration?: number; // for audio/video
+  duration?: number;
+  reactions?: MessageReaction[];
+  isForwarded?: boolean;
+  forwardedFrom?: string;
+  isStarred?: boolean;
+  starredBy?: string[];
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
+  isTemporary?: boolean;
+  expiresAt?: Date;
+  viewedBy?: string[];
+}
+
+export interface TypingIndicator {
+  userId: string;
+  userName: string;
+  timestamp: Date;
 }
 
 export interface Chat {
@@ -69,6 +95,8 @@ export interface Chat {
   createdAt: Date;
   updatedAt: Date;
   settings?: ChatSettings;
+  typingUsers?: TypingIndicator[];
+  starredMessages?: string[];
 }
 
 export interface ChatSettings {
@@ -323,6 +351,21 @@ export interface UserActivity {
   riskScore: number; // 0-100
 }
 
+export interface VoiceCallSession {
+  id: string;
+  chatId: string;
+  initiatorId: string;
+  participants: string[];
+  status: 'pending' | 'ringing' | 'active' | 'ended' | 'declined' | 'missed' | 'busy';
+  startTime?: Date;
+  endTime?: Date;
+  duration?: number;
+  callType: 'voice' | 'video';
+  quality: 'low' | 'medium' | 'high';
+  recordingEnabled: boolean;
+  recordingUrl?: string;
+}
+
 export interface VideoCallSession {
   id: string;
   chatId: string;
@@ -331,7 +374,7 @@ export interface VideoCallSession {
   status: 'pending' | 'active' | 'ended' | 'declined';
   startTime?: Date;
   endTime?: Date;
-  duration?: number; // in seconds
+  duration?: number;
   quality: 'low' | 'medium' | 'high';
   recordingEnabled: boolean;
   recordingUrl?: string;
@@ -393,8 +436,37 @@ export interface UserSatisfactionSurvey {
   submittedAt: Date;
 }
 
+export interface Story {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  type: 'image' | 'video' | 'text';
+  content: string;
+  caption?: string;
+  backgroundColor?: string;
+  createdAt: Date;
+  expiresAt: Date;
+  viewedBy: string[];
+  reactions?: MessageReaction[];
+}
+
+export interface ChatSearchResult {
+  messageId: string;
+  chatId: string;
+  content: string;
+  senderId: string;
+  senderName: string;
+  timestamp: Date;
+  context: {
+    before?: string;
+    after?: string;
+  };
+}
+
 export interface PremiumFeatures {
   videoCalls: boolean;
+  voiceCalls: boolean;
   largeFileSharing: boolean;
   scheduledMessages: boolean;
   advancedAnalytics: boolean;
@@ -402,4 +474,7 @@ export interface PremiumFeatures {
   customThemes: boolean;
   messageEncryption: boolean;
   cloudBackup: boolean;
+  temporaryMessages: boolean;
+  locationSharing: boolean;
+  unlimitedForwarding: boolean;
 }

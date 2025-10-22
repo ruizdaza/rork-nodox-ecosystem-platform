@@ -2,8 +2,8 @@ import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo } from 'react';
-import { Chat, Message, User, Contact, ChatPermission, UserRole } from '@/types/chat';
-import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils, InputValidator, ValidationUtils } from '@/utils/security';
+import { Chat, Message, User, Contact, ChatPermission, MessageReaction, TypingIndicator, VoiceCallSession, ChatSearchResult } from '@/types/chat';
+import { ChatSecurityValidator, chatAuthMiddleware, chatSecurityUtils } from '@/utils/security';
 import { useNotifications } from './use-notifications';
 
 const STORAGE_KEYS = {
@@ -900,6 +900,333 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     console.log('[Chat] User unblocked:', userId);
   }, [usersQuery.data, saveUsersAsync]);
 
+  const addReaction = useCallback(async (messageId: string, chatId: string, emoji: string) => {
+    const currentMessages = messagesQuery.data || {};
+    
+    const reaction: MessageReaction = {
+      emoji,
+      userId: 'current-user',
+      userName: currentUser.name,
+      timestamp: new Date(),
+    };
+    
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: (currentMessages[chatId] || []).map(msg => {
+        if (msg.id === messageId) {
+          const existingReactions = msg.reactions || [];
+          const userReactionIndex = existingReactions.findIndex(
+            r => r.userId === 'current-user' && r.emoji === emoji
+          );
+          
+          if (userReactionIndex >= 0) {
+            return {
+              ...msg,
+              reactions: existingReactions.filter((_, i) => i !== userReactionIndex),
+            };
+          }
+          
+          return {
+            ...msg,
+            reactions: [...existingReactions, reaction],
+          };
+        }
+        return msg;
+      }),
+    };
+    
+    await saveMessagesAsync(updatedMessages);
+    console.log('[Chat] Reaction added/removed:', emoji);
+  }, [messagesQuery.data, saveMessagesAsync]);
+
+  const setTyping = useCallback(async (chatId: string, isTyping: boolean) => {
+    const currentChats = chatsQuery.data || [];
+    
+    const typingIndicator: TypingIndicator = {
+      userId: 'current-user',
+      userName: currentUser.name,
+      timestamp: new Date(),
+    };
+    
+    const updatedChats = currentChats.map(chat => {
+      if (chat.id === chatId) {
+        const typingUsers = chat.typingUsers || [];
+        
+        if (isTyping) {
+          const alreadyTyping = typingUsers.some(t => t.userId === 'current-user');
+          if (alreadyTyping) return chat;
+          
+          return {
+            ...chat,
+            typingUsers: [...typingUsers, typingIndicator],
+          };
+        } else {
+          return {
+            ...chat,
+            typingUsers: typingUsers.filter(t => t.userId !== 'current-user'),
+          };
+        }
+      }
+      return chat;
+    });
+    
+    await saveChatsAsync(updatedChats);
+  }, [chatsQuery.data, saveChatsAsync]);
+
+  const forwardMessage = useCallback(async (messageId: string, fromChatId: string, toChatIds: string[]) => {
+    const currentMessages = messagesQuery.data || {};
+    const originalMessage = currentMessages[fromChatId]?.find(m => m.id === messageId);
+    
+    if (!originalMessage) {
+      throw new Error('Mensaje no encontrado');
+    }
+    
+    for (const toChatId of toChatIds) {
+      const forwardedMessage: Message = {
+        ...originalMessage,
+        id: chatSecurityUtils.generateSecureMessageId(),
+        chatId: toChatId,
+        senderId: 'current-user',
+        timestamp: new Date(),
+        isRead: false,
+        isForwarded: true,
+        forwardedFrom: originalMessage.senderId,
+      };
+      
+      currentMessages[toChatId] = [...(currentMessages[toChatId] || []), forwardedMessage];
+    }
+    
+    await saveMessagesAsync(currentMessages);
+    console.log('[Chat] Message forwarded to', toChatIds.length, 'chats');
+  }, [messagesQuery.data, saveMessagesAsync]);
+
+  const toggleStarMessage = useCallback(async (messageId: string, chatId: string) => {
+    const currentMessages = messagesQuery.data || {};
+    const currentChats = chatsQuery.data || [];
+    
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: (currentMessages[chatId] || []).map(msg => {
+        if (msg.id === messageId) {
+          const starredBy = msg.starredBy || [];
+          const isStarred = starredBy.includes('current-user');
+          
+          return {
+            ...msg,
+            isStarred: !isStarred,
+            starredBy: isStarred
+              ? starredBy.filter(id => id !== 'current-user')
+              : [...starredBy, 'current-user'],
+          };
+        }
+        return msg;
+      }),
+    };
+    
+    const message = updatedMessages[chatId].find(m => m.id === messageId);
+    const updatedChats = currentChats.map(chat => {
+      if (chat.id === chatId) {
+        const starredMessages = chat.starredMessages || [];
+        const isStarred = message?.isStarred;
+        
+        return {
+          ...chat,
+          starredMessages: isStarred
+            ? [...starredMessages, messageId]
+            : starredMessages.filter(id => id !== messageId),
+        };
+      }
+      return chat;
+    });
+    
+    await Promise.all([
+      saveMessagesAsync(updatedMessages),
+      saveChatsAsync(updatedChats),
+    ]);
+    console.log('[Chat] Message star toggled');
+  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
+
+  const searchMessages = useCallback((query: string, chatId?: string): ChatSearchResult[] => {
+    const currentMessages = messagesQuery.data || {};
+    const currentUsers = usersQuery.data || {};
+    const results: ChatSearchResult[] = [];
+    
+    const chatsToSearch = chatId ? [chatId] : Object.keys(currentMessages);
+    
+    for (const searchChatId of chatsToSearch) {
+      const messages = currentMessages[searchChatId] || [];
+      
+      messages.forEach((msg, index) => {
+        if (msg.content.toLowerCase().includes(query.toLowerCase()) && !msg.isDeleted) {
+          const sender = currentUsers[msg.senderId];
+          results.push({
+            messageId: msg.id,
+            chatId: searchChatId,
+            content: msg.content,
+            senderId: msg.senderId,
+            senderName: sender?.name || 'Usuario',
+            timestamp: msg.timestamp,
+            context: {
+              before: messages[index - 1]?.content,
+              after: messages[index + 1]?.content,
+            },
+          });
+        }
+      });
+    }
+    
+    return results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [messagesQuery.data, usersQuery.data]);
+
+  const sendTemporaryMessage = useCallback(async (
+    chatId: string,
+    content: string,
+    expiresInSeconds: number
+  ) => {
+    const currentMessages = messagesQuery.data || {};
+    const currentChats = chatsQuery.data || [];
+    
+    const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+    
+    const newMessage: Message = {
+      id: chatSecurityUtils.generateSecureMessageId(),
+      chatId,
+      senderId: 'current-user',
+      content,
+      type: 'text',
+      timestamp: new Date(),
+      isRead: false,
+      isDeleted: false,
+      isTemporary: true,
+      expiresAt,
+      viewedBy: [],
+    };
+
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: [...(currentMessages[chatId] || []), newMessage],
+    };
+
+    const updatedChats = currentChats.map(chat => 
+      chat.id === chatId 
+        ? { ...chat, lastMessage: newMessage, updatedAt: new Date() }
+        : chat
+    );
+
+    await Promise.all([
+      saveMessagesAsync(updatedMessages),
+      saveChatsAsync(updatedChats),
+    ]);
+    
+    setTimeout(async () => {
+      const latestMessages = messagesQuery.data || {};
+      const deleted = {
+        ...latestMessages,
+        [chatId]: (latestMessages[chatId] || []).filter(m => m.id !== newMessage.id),
+      };
+      await saveMessagesAsync(deleted);
+      console.log('[Chat] Temporary message deleted:', newMessage.id);
+    }, expiresInSeconds * 1000);
+    
+    console.log('[Chat] Temporary message sent, expires in', expiresInSeconds, 'seconds');
+  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
+
+  const sendLocationMessage = useCallback(async (
+    chatId: string,
+    latitude: number,
+    longitude: number,
+    address?: string
+  ) => {
+    const currentMessages = messagesQuery.data || {};
+    const currentChats = chatsQuery.data || [];
+    
+    const locationData = {
+      latitude,
+      longitude,
+      address: address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+    };
+    
+    const newMessage: Message = {
+      id: chatSecurityUtils.generateSecureMessageId(),
+      chatId,
+      senderId: 'current-user',
+      content: `📍 ${locationData.address}`,
+      type: 'location',
+      timestamp: new Date(),
+      isRead: false,
+      location: locationData,
+    };
+
+    const updatedMessages = {
+      ...currentMessages,
+      [chatId]: [...(currentMessages[chatId] || []), newMessage],
+    };
+
+    const updatedChats = currentChats.map(chat => 
+      chat.id === chatId 
+        ? { ...chat, lastMessage: newMessage, updatedAt: new Date() }
+        : chat
+    );
+
+    await Promise.all([
+      saveMessagesAsync(updatedMessages),
+      saveChatsAsync(updatedChats),
+    ]);
+    
+    console.log('[Chat] Location message sent');
+  }, [messagesQuery.data, chatsQuery.data, saveMessagesAsync, saveChatsAsync]);
+
+  const [activeVoiceCall, setActiveVoiceCall] = useState<VoiceCallSession | null>(null);
+
+  const initiateVoiceCall = useCallback(async (chatId: string) => {
+    const chat = (chatsQuery.data || []).find(c => c.id === chatId);
+    if (!chat) {
+      throw new Error('Chat no encontrado');
+    }
+    
+    const callSession: VoiceCallSession = {
+      id: `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      chatId,
+      initiatorId: 'current-user',
+      participants: chat.participants,
+      status: 'ringing',
+      callType: 'voice',
+      quality: 'high',
+      recordingEnabled: false,
+      startTime: new Date(),
+    };
+    
+    setActiveVoiceCall(callSession);
+    
+    await notifications.createNotification(
+      'Llamada de Voz',
+      `${currentUser.name} está llamando...`,
+      'system_update',
+      'chat',
+      { callId: callSession.id, chatId },
+      'high'
+    );
+    
+    console.log('[Chat] Voice call initiated:', callSession.id);
+    return callSession;
+  }, [chatsQuery.data, notifications]);
+
+  const endVoiceCall = useCallback(async () => {
+    if (activeVoiceCall) {
+      const endedCall: VoiceCallSession = {
+        ...activeVoiceCall,
+        status: 'ended',
+        endTime: new Date(),
+        duration: activeVoiceCall.startTime
+          ? Math.floor((Date.now() - activeVoiceCall.startTime.getTime()) / 1000)
+          : 0,
+      };
+      
+      setActiveVoiceCall(null);
+      console.log('[Chat] Voice call ended. Duration:', endedCall.duration, 'seconds');
+    }
+  }, [activeVoiceCall]);
+
   return useMemo(() => ({
     chats: chatsQuery.data || [],
     messages: messagesQuery.data || {},
@@ -922,6 +1249,16 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     canPerformAction,
     blockUser,
     unblockUser,
+    addReaction,
+    setTyping,
+    forwardMessage,
+    toggleStarMessage,
+    searchMessages,
+    sendTemporaryMessage,
+    sendLocationMessage,
+    initiateVoiceCall,
+    endVoiceCall,
+    activeVoiceCall,
     currentUser,
     isLoading: chatsQuery.isLoading || messagesQuery.isLoading || usersQuery.isLoading || contactsQuery.isLoading,
     currentUserId: 'current-user',
@@ -947,6 +1284,16 @@ export const [ChatProvider, useChat] = createContextHook(() => {
     canPerformAction,
     blockUser,
     unblockUser,
+    addReaction,
+    setTyping,
+    forwardMessage,
+    toggleStarMessage,
+    searchMessages,
+    sendTemporaryMessage,
+    sendLocationMessage,
+    initiateVoiceCall,
+    endVoiceCall,
+    activeVoiceCall,
     chatsQuery.isLoading,
     messagesQuery.isLoading,
     usersQuery.isLoading,
