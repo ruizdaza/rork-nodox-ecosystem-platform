@@ -6,14 +6,16 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { ArrowLeft, Flashlight, FlashlightOff, CreditCard, Coins } from 'lucide-react-native';
+import { ArrowLeft, Flashlight, FlashlightOff, CreditCard, Coins, QrCode } from 'lucide-react-native';
 import { useNodoX } from '@/hooks/use-nodox-store';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import { useChat } from '@/hooks/use-chat';
 import NodoXLogo from '@/components/NodoXLogo';
 
 interface PaymentData {
@@ -25,15 +27,30 @@ interface PaymentData {
   description?: string;
 }
 
+interface ContactData {
+  type: 'nodox_contact';
+  userId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  avatar?: string;
+}
+
+type QRData = PaymentData | ContactData;
+
 export default function ScannerScreen() {
-  const { ncopBalance, copBalance } = useNodoX();
+  const { ncopBalance, copBalance, user } = useNodoX();
   const { processPhysicalStorePayment } = useMarketplace();
+  const { addContact, contacts } = useChat();
   const [facing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [flashlight, setFlashlight] = useState<boolean>(false);
   const [scanned, setScanned] = useState<boolean>(false);
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
+  const [contactData, setContactData] = useState<ContactData | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [showContactModal, setShowContactModal] = useState<boolean>(false);
+  const [showMyQR, setShowMyQR] = useState<boolean>(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'ncop' | 'fiat'>('ncop');
   const [processing, setProcessing] = useState<boolean>(false);
 
@@ -74,11 +91,29 @@ export default function ScannerScreen() {
     console.log('QR Code scanned:', data);
     
     try {
-      const qrData: PaymentData = JSON.parse(data);
+      const qrData: QRData = JSON.parse(data);
       
-      if (qrData.type === 'nodox_payment' && qrData.storeId && qrData.amount) {
-        setPaymentData(qrData);
-        setShowPaymentModal(true);
+      if (qrData.type === 'nodox_payment') {
+        const paymentQR = qrData as PaymentData;
+        if (paymentQR.storeId && paymentQR.amount) {
+          setPaymentData(paymentQR);
+          setShowPaymentModal(true);
+        } else {
+          showError('Código QR no válido', 'El código QR de pago no tiene la información completa.');
+        }
+      } else if (qrData.type === 'nodox_contact') {
+        const contactQR = qrData as ContactData;
+        if (contactQR.userId && contactQR.name) {
+          const existingContact = contacts.find(c => c.userId === contactQR.userId);
+          if (existingContact) {
+            showError('Contacto existente', `${contactQR.name} ya está en tus contactos.`);
+          } else {
+            setContactData(contactQR);
+            setShowContactModal(true);
+          }
+        } else {
+          showError('Código QR no válido', 'El código QR de contacto no tiene la información completa.');
+        }
       } else {
         showError('Código QR no válido', 'Este código QR no es compatible con NodoX.');
       }
@@ -146,6 +181,47 @@ export default function ScannerScreen() {
     setScanned(false);
   };
 
+  const closeContactModal = () => {
+    setShowContactModal(false);
+    setContactData(null);
+    setScanned(false);
+  };
+
+  const handleAddContact = async () => {
+    if (!contactData) return;
+    
+    try {
+      await addContact({
+        name: contactData.name,
+        phone: contactData.phone,
+        email: contactData.email,
+        avatar: contactData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contactData.name)}&background=2563eb&color=fff&size=150`,
+        isFavorite: false,
+      });
+      
+      setShowContactModal(false);
+      showSuccess(
+        'Contacto Agregado',
+        `${contactData.name} ha sido agregado a tus contactos`
+      );
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      showError('Error', 'No se pudo agregar el contacto');
+    }
+  };
+
+  const generateMyQRData = (): string => {
+    const contactQR: ContactData = {
+      type: 'nodox_contact',
+      userId: user.id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      avatar: user.avatar,
+    };
+    return JSON.stringify(contactQR);
+  };
+
   const canPayWithNCOP = () => {
     if (!paymentData) return false;
     const ncopAmount = Math.ceil(paymentData.amount / 100);
@@ -166,8 +242,8 @@ export default function ScannerScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
-          <ArrowLeft color="#ffffff" size={24} />
+        <TouchableOpacity style={styles.headerButton} onPress={() => setShowMyQR(!showMyQR)}>
+          <QrCode color="#ffffff" size={24} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <NodoXLogo size="small" showText={false} style={styles.logoWhite} />
@@ -197,7 +273,7 @@ export default function ScannerScreen() {
             </View>
             <View style={styles.instructionsContainer}>
               <Text style={styles.instructions}>
-                Apunta la cámara hacia el código QR del comercio
+                Apunta la cámara hacia el código QR
               </Text>
               <View style={styles.balanceContainer}>
                 <View style={styles.balanceItem}>
@@ -224,7 +300,6 @@ export default function ScannerScreen() {
         </View>
       )}
 
-      {/* Payment Modal */}
       <Modal
         visible={showPaymentModal}
         transparent
@@ -333,6 +408,93 @@ export default function ScannerScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showContactModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeContactModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Agregar Contacto</Text>
+            
+            {contactData && (
+              <>
+                <View style={styles.contactPreview}>
+                  <Image 
+                    source={{ uri: contactData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contactData.name)}&background=2563eb&color=fff&size=150` }}
+                    style={styles.contactAvatar}
+                  />
+                  <Text style={styles.contactName}>{contactData.name}</Text>
+                  {contactData.phone && (
+                    <Text style={styles.contactDetail}>{contactData.phone}</Text>
+                  )}
+                  {contactData.email && (
+                    <Text style={styles.contactDetail}>{contactData.email}</Text>
+                  )}
+                </View>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={closeContactModal}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={handleAddContact}
+                  >
+                    <Text style={styles.confirmButtonText}>Agregar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showMyQR}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMyQR(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.myQRHeader}>
+              <Text style={styles.modalTitle}>Mi Código QR</Text>
+              <TouchableOpacity 
+                onPress={() => setShowMyQR(false)}
+                style={styles.closeIconButton}
+              >
+                <ArrowLeft color="#64748b" size={24} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.qrContainer}>
+              <View style={styles.qrPlaceholder}>
+                <QrCode color="#2563eb" size={180} />
+                <Text style={styles.qrDataText}>{generateMyQRData()}</Text>
+              </View>
+              
+              <View style={styles.userInfoContainer}>
+                <Image source={{ uri: user.avatar }} style={styles.userAvatar} />
+                <Text style={styles.userName}>{user.name}</Text>
+                {user.email && (
+                  <Text style={styles.userEmail}>{user.email}</Text>
+                )}
+              </View>
+              
+              <Text style={styles.qrInstructions}>
+                Comparte este código QR para que otros usuarios puedan agregarte como contacto
+              </Text>
+            </View>
           </View>
         </View>
       </Modal>
@@ -618,5 +780,86 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  contactPreview: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  contactAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 12,
+  },
+  contactName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  contactDetail: {
+    fontSize: 16,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  myQRHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  closeIconButton: {
+    padding: 8,
+  },
+  qrContainer: {
+    alignItems: 'center',
+  },
+  qrPlaceholder: {
+    width: 250,
+    height: 250,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  qrDataText: {
+    position: 'absolute',
+    fontSize: 8,
+    color: 'transparent',
+    userSelect: 'all' as any,
+  },
+  userInfoContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  userAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  qrInstructions: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 20,
   },
 });

@@ -9,6 +9,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   avatar: string;
   membershipType: "free" | "premium";
   joinDate: string;
@@ -155,6 +156,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     id: "1",
     name: "María González",
     email: "maria.gonzalez@email.com",
+    phone: "+57 300 123 4567",
     avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
     membershipType: "premium",
     joinDate: "2024-01-15",

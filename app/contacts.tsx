@@ -273,7 +273,7 @@ export default function ContactsScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.headerButton}
-              onPress={() => Alert.alert('Escanear QR', 'Escanea el código QR de un contacto para agregarlo')}
+              onPress={() => router.push('/scanner')}
             >
               <QrCode color="#2563eb" size={20} />
             </TouchableOpacity>
