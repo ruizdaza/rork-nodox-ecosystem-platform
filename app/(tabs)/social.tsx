@@ -33,7 +33,7 @@ import {
 } from "lucide-react-native";
 import { useSocialFeed } from "@/hooks/use-social-feed";
 import { useChat } from "@/hooks/use-chat";
-import { Chat } from "@/types/chat";
+import { Chat, Contact } from "@/types/chat";
 import NodoXLogo from "@/components/NodoXLogo";
 
 const formatTime = (date: Date): string => {
@@ -121,8 +121,11 @@ export default function SocialScreen() {
   const [showCreatePost, setShowCreatePost] = useState<boolean>(false);
   const [postText, setPostText] = useState<string>("");
   const [postImage, setPostImage] = useState<string>("");
+  const [showTagFriends, setShowTagFriends] = useState<boolean>(false);
+  const [taggedFriends, setTaggedFriends] = useState<Contact[]>([]);
+  const [tagSearchQuery, setTagSearchQuery] = useState<string>("");
   const { posts, toggleLike, toggleCommentLike, addComment, addPost } = useSocialFeed();
-  const { chats, isLoading } = useChat();
+  const { chats, isLoading, contacts } = useChat();
 
   const selectedPostData = posts.find(post => post.id === selectedPost);
 
@@ -140,17 +143,43 @@ export default function SocialScreen() {
 
   const handleCreatePost = () => {
     if (postText.trim()) {
-      addPost(postText.trim(), postImage || undefined);
+      let finalText = postText.trim();
+      if (taggedFriends.length > 0) {
+        const taggedNames = taggedFriends.map(f => `@${f.name}`).join(' ');
+        finalText = `${finalText} - con ${taggedNames}`;
+      }
+      addPost(finalText, postImage || undefined);
       setPostText("");
       setPostImage("");
+      setTaggedFriends([]);
       setShowCreatePost(false);
     }
   };
+
+  const handleToggleTagFriend = (contact: Contact) => {
+    const isTagged = taggedFriends.some(f => f.id === contact.id);
+    if (isTagged) {
+      setTaggedFriends(taggedFriends.filter(f => f.id !== contact.id));
+    } else {
+      setTaggedFriends([...taggedFriends, contact]);
+    }
+  };
+
+  const filteredContactsForTag = React.useMemo(() => {
+    if (!tagSearchQuery.trim()) return contacts.slice(0, 10);
+    return contacts.filter(c =>
+      c.name.toLowerCase().includes(tagSearchQuery.toLowerCase()) ||
+      c.email?.toLowerCase().includes(tagSearchQuery.toLowerCase())
+    ).slice(0, 10);
+  }, [contacts, tagSearchQuery]);
 
   const handleCloseCreatePost = () => {
     setShowCreatePost(false);
     setPostText("");
     setPostImage("");
+    setTaggedFriends([]);
+    setShowTagFriends(false);
+    setTagSearchQuery("");
   };
 
   const handleSharePost = async (post: any) => {
@@ -421,6 +450,26 @@ export default function SocialScreen() {
               ) : null}
             </ScrollView>
 
+            {/* Tagged Friends */}
+            {taggedFriends.length > 0 && (
+              <View style={styles.taggedFriendsContainer}>
+                <Text style={styles.taggedFriendsLabel}>Etiquetados:</Text>
+                <View style={styles.taggedFriendsList}>
+                  {taggedFriends.map(friend => (
+                    <View key={friend.id} style={styles.taggedFriendChip}>
+                      <Text style={styles.taggedFriendName}>@{friend.name}</Text>
+                      <TouchableOpacity 
+                        onPress={() => handleToggleTagFriend(friend)}
+                        style={styles.removeTagButton}
+                      >
+                        <X size={14} color="#64748b" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Post Options */}
             <View style={styles.postOptions}>
               <TouchableOpacity 
@@ -431,11 +480,76 @@ export default function SocialScreen() {
                 <Text style={styles.postOptionText}>Foto</Text>
               </TouchableOpacity>
               
+              <TouchableOpacity 
+                style={styles.postOption}
+                onPress={() => setShowTagFriends(!showTagFriends)}
+              >
+                <Users color="#2563eb" size={24} />
+                <Text style={styles.postOptionText}>Etiquetar ({taggedFriends.length})</Text>
+              </TouchableOpacity>
+              
               <TouchableOpacity style={styles.postOption}>
                 <Smile color="#f59e0b" size={24} />
                 <Text style={styles.postOptionText}>Sentimiento</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Tag Friends Modal */}
+            {showTagFriends && (
+              <View style={styles.tagFriendsModal}>
+                <View style={styles.tagFriendsHeader}>
+                  <Text style={styles.tagFriendsTitle}>Etiquetar amigos</Text>
+                  <TouchableOpacity onPress={() => setShowTagFriends(false)}>
+                    <X color="#64748b" size={20} />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.tagSearchBar}>
+                  <Search size={16} color="#64748b" />
+                  <TextInput
+                    style={styles.tagSearchInput}
+                    placeholder="Buscar amigos..."
+                    value={tagSearchQuery}
+                    onChangeText={setTagSearchQuery}
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+
+                <ScrollView style={styles.tagFriendsList} showsVerticalScrollIndicator={false}>
+                  {filteredContactsForTag.length > 0 ? (
+                    filteredContactsForTag.map(contact => {
+                      const isTagged = taggedFriends.some(f => f.id === contact.id);
+                      return (
+                        <TouchableOpacity
+                          key={contact.id}
+                          style={styles.tagFriendItem}
+                          onPress={() => handleToggleTagFriend(contact)}
+                        >
+                          <Image source={{ uri: contact.avatar }} style={styles.tagFriendAvatar} />
+                          <View style={styles.tagFriendInfo}>
+                            <Text style={styles.tagFriendName}>{contact.name}</Text>
+                            {contact.email && (
+                              <Text style={styles.tagFriendEmail}>{contact.email}</Text>
+                            )}
+                          </View>
+                          {isTagged && (
+                            <View style={styles.taggedIndicator}>
+                              <Text style={styles.taggedIndicatorText}>✓</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.noContactsFound}>
+                      <Text style={styles.noContactsText}>
+                        {tagSearchQuery ? 'No se encontraron contactos' : 'No tienes contactos para etiquetar'}
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -1090,5 +1204,127 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748b",
     fontWeight: "500",
+  },
+  taggedFriendsContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: "#f8fafc",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+  },
+  taggedFriendsLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748b",
+    marginBottom: 8,
+  },
+  taggedFriendsList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  taggedFriendChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 16,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  taggedFriendName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#2563eb",
+  },
+  removeTagButton: {
+    padding: 2,
+  },
+  tagFriendsModal: {
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
+    maxHeight: 400,
+  },
+  tagFriendsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  tagFriendsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  tagSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  tagSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1e293b",
+  },
+  tagFriendsList: {
+    maxHeight: 280,
+  },
+  tagFriendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  tagFriendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  tagFriendInfo: {
+    flex: 1,
+  },
+  tagFriendName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 2,
+  },
+  tagFriendEmail: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+  taggedIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#2563eb",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  taggedIndicatorText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  noContactsFound: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  noContactsText: {
+    fontSize: 14,
+    color: "#94a3b8",
   },
 });
