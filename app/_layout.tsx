@@ -47,7 +47,7 @@ function RootLayoutNav() {
       <Stack.Screen name="contacts" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />
       <Stack.Screen name="help-support" options={{ headerShown: false }} />
-      <Stack.Screen name="earn-points" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="earn-points" options={{ presentation: "modal" }} />
       <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="cart" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="checkout" options={{ headerShown: false, presentation: "modal" }} />
