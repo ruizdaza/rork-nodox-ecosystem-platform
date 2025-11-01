@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
-import { ArrowLeft, Send, Paperclip, Mic, Play, Pause, MoreVertical, Phone, Video, Clock, FileUp, Star } from 'lucide-react-native';
+import { ArrowLeft, Send, Paperclip, Mic, Play, Pause, MoreVertical, Phone, Video, Clock, FileUp, Star, Reply, Copy, Share2, Edit2, Check, CheckCheck, Search } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import { useChat } from '@/hooks/use-chat';
 import { usePremiumFeatures } from '@/hooks/use-premium-features';
@@ -128,22 +128,44 @@ const AudioMessage = ({ message, isOwn }: { message: Message; isOwn: boolean }) 
   );
 };
 
-const MessageBubble = ({ message, isOwn }: { message: Message; isOwn: boolean }) => {
+const MessageBubble = ({ message, isOwn, onLongPress }: { message: Message; isOwn: boolean; onLongPress: (message: Message) => void }) => {
   if (message.type === 'audio') {
     return <AudioMessage message={message} isOwn={isOwn} />;
   }
 
   return (
-    <View style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}>
+    <TouchableOpacity
+      style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}
+      onLongPress={() => onLongPress(message)}
+      activeOpacity={0.7}
+    >
       <View style={[styles.messageBubble, isOwn ? styles.ownBubble : styles.otherBubble]}>
+        {message.replyTo && (
+          <View style={styles.replyPreview}>
+            <Text style={[styles.replyText, isOwn ? styles.ownTime : styles.otherTime]} numberOfLines={1}>
+              Respondiendo a un mensaje
+            </Text>
+          </View>
+        )}
         <Text style={[styles.messageText, isOwn ? styles.ownText : styles.otherText]}>
           {message.content}
         </Text>
-        <Text style={[styles.messageTime, isOwn ? styles.ownTime : styles.otherTime]}>
-          {formatMessageTime(message.timestamp)}
-        </Text>
+        <View style={styles.messageFooter}>
+          <Text style={[styles.messageTime, isOwn ? styles.ownTime : styles.otherTime]}>
+            {formatMessageTime(message.timestamp)}
+          </Text>
+          {isOwn && (
+            <View style={styles.messageStatus}>
+              {message.isRead ? (
+                <CheckCheck size={16} color="rgba(255, 255, 255, 0.7)" />
+              ) : (
+                <Check size={16} color="rgba(255, 255, 255, 0.7)" />
+              )}
+            </View>
+          )}
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -156,7 +178,8 @@ export default function ConversationScreen() {
     sendMessage, 
     markAsRead,
     chats,
-    currentUserId 
+    currentUserId,
+    setTyping
   } = useChat();
   
   const {
@@ -175,7 +198,11 @@ export default function ConversationScreen() {
   } = useAnalytics();
   
   const [inputText, setInputText] = useState<string>('');
-  const [, setIsTyping] = useState<boolean>(false);
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+  const [showSearch, setShowSearch] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
@@ -225,6 +252,10 @@ export default function ConversationScreen() {
     const messageText = inputText.trim();
     setInputText('');
     setIsTyping(false);
+    setReplyingTo(null);
+    
+    // Detener indicador de escritura
+    await setTyping(activeChat, false).catch(console.error);
     
     Animated.timing(inputHeight, {
       toValue: 40,
@@ -243,7 +274,15 @@ export default function ConversationScreen() {
   const handleInputChange = (text: string) => {
     if (!text || text.length > 1000) return;
     setInputText(text);
-    setIsTyping(text.length > 0);
+    const typing = text.length > 0;
+    setIsTyping(typing);
+    
+    if (activeChat && typing) {
+      // Enviar indicador de escritura
+      setTyping(activeChat, true).catch(console.error);
+    } else if (activeChat && !typing) {
+      setTyping(activeChat, false).catch(console.error);
+    }
     
     const lines = text.split('\n').length;
     const newHeight = Math.min(Math.max(40, lines * 20), 100);
@@ -430,6 +469,43 @@ export default function ConversationScreen() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const handleMessageLongPress = (message: Message) => {
+    setSelectedMessage(message);
+    Alert.alert(
+      'Opciones de Mensaje',
+      'Selecciona una acción',
+      [
+        {
+          text: 'Responder',
+          onPress: () => {
+            setReplyingTo(message);
+            setSelectedMessage(null);
+          }
+        },
+        {
+          text: 'Copiar',
+          onPress: () => {
+            // En una implementación real, usar Clipboard
+            Alert.alert('Copiado', 'Mensaje copiado al portapapeles');
+            setSelectedMessage(null);
+          }
+        },
+        {
+          text: 'Reenviar',
+          onPress: () => {
+            Alert.alert('Reenviar', 'Función de reenvío disponible próximamente');
+            setSelectedMessage(null);
+          }
+        },
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: () => setSelectedMessage(null)
+        }
+      ]
+    );
+  };
+
   if (!activeChat || !currentChat) {
     return (
       <SafeAreaView style={styles.container}>
@@ -521,7 +597,8 @@ export default function ConversationScreen() {
           renderItem={({ item }) => (
             <MessageBubble 
               message={item} 
-              isOwn={item.senderId === currentUserId} 
+              isOwn={item.senderId === currentUserId}
+              onLongPress={handleMessageLongPress}
             />
           )}
           style={styles.messagesList}
@@ -879,5 +956,27 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
+  },
+  replyPreview: {
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    padding: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2563eb',
+    marginBottom: 8,
+  },
+  replyText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    justifyContent: 'flex-end',
+  },
+  messageStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
