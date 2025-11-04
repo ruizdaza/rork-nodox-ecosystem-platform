@@ -1,4 +1,5 @@
 import createContextHook from '@nkzw/create-context-hook';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -265,7 +266,14 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['notification-analytics', selectedTimeframe],
     queryFn: async (): Promise<NotificationAnalytics[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_notification_analytics');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((item: any) => ({
+            ...item,
+            date: new Date(item.date),
+          }));
+        }
         return mockAnalytics;
       } catch {
         return mockAnalytics;
@@ -277,7 +285,15 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['notification-segments'],
     queryFn: async (): Promise<NotificationSegment[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_notification_segments');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt),
+          }));
+        }
         return mockSegments;
       } catch {
         return mockSegments;
@@ -289,7 +305,15 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['ab-tests'],
     queryFn: async (): Promise<ABTest[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_ab_tests');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((item: any) => ({
+            ...item,
+            startDate: new Date(item.startDate),
+            endDate: item.endDate ? new Date(item.endDate) : undefined,
+          }));
+        }
         return mockABTests;
       } catch {
         return mockABTests;
@@ -301,7 +325,10 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['frequency-rules'],
     queryFn: async (): Promise<NotificationFrequencyRule[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_frequency_rules');
+        if (stored) {
+          return JSON.parse(stored);
+        }
         return mockFrequencyRules;
       } catch {
         return mockFrequencyRules;
@@ -313,7 +340,14 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['notification-insights'],
     queryFn: async (): Promise<NotificationInsight[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_notification_insights');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((item: any) => ({
+            ...item,
+            generatedAt: new Date(item.generatedAt),
+          }));
+        }
         return mockInsights;
       } catch {
         return mockInsights;
@@ -325,7 +359,15 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
     queryKey: ['notification-optimizations'],
     queryFn: async (): Promise<NotificationOptimization[]> => {
       try {
-        // TODO: Implement storage
+        const stored = await AsyncStorage.getItem('nodox_notification_optimizations');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return parsed.map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt),
+            appliedAt: item.appliedAt ? new Date(item.appliedAt) : undefined,
+          }));
+        }
         return mockOptimizations;
       } catch {
         return mockOptimizations;
@@ -339,7 +381,7 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
       if (!analytics || !Array.isArray(analytics)) {
         throw new Error('Invalid analytics data');
       }
-      // TODO: Implement storage
+      await AsyncStorage.setItem('nodox_notification_analytics', JSON.stringify(analytics));
       console.log('Saving analytics:', analytics.length);
       return analytics;
     },
@@ -353,7 +395,7 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
       if (!insights || !Array.isArray(insights)) {
         throw new Error('Invalid insights data');
       }
-      // TODO: Implement storage
+      await AsyncStorage.setItem('nodox_notification_insights', JSON.stringify(insights));
       console.log('Saving insights:', insights.length);
       return insights;
     },
