@@ -16,6 +16,9 @@ import {
   ReferralTemplate,
   ReferralLeaderboard,
 } from '@/types/referral';
+import { useChat } from './use-chat';
+import { useNotifications } from './use-notifications';
+import { router } from 'expo-router';
 
 const mockLeads: ReferralLead[] = [
   {
@@ -292,6 +295,8 @@ const mockTiers: ReferralTier[] = [
 ];
 
 export const useReferralCRM = () => {
+  const chat = useChat();
+  const notifications = useNotifications();
   const [leads, setLeads] = useState<ReferralLead[]>(mockLeads);
   const [interactions, setInteractions] = useState<ReferralInteraction[]>(mockInteractions);
   const [campaigns, setCampaigns] = useState<ReferralCampaign[]>(mockCampaigns);
@@ -534,6 +539,190 @@ export const useReferralCRM = () => {
     return commissions.filter(c => c.leadId === leadId);
   }, [commissions]);
 
+  const startChatWithLead = useCallback(async (leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) {
+      throw new Error('Lead no encontrado');
+    }
+
+    let userId = lead.customFields?.userId as string | undefined;
+    if (!userId) {
+      userId = `lead-user-${leadId}`;
+      const updatedLeads = leads.map(l => 
+        l.id === leadId 
+          ? { ...l, customFields: { ...l.customFields, userId } }
+          : l
+      );
+      setLeads(updatedLeads);
+    }
+
+    const chatId = await chat.startChatWithContact(userId);
+    
+    const welcomeMessage = `¡Hola ${lead.name}! 👋 Gracias por tu interés en NodoX. Estoy aquí para ayudarte en lo que necesites. ¿Cómo puedo asistirte hoy?`;
+    await chat.sendMessage(chatId, welcomeMessage);
+    
+    addInteraction({
+      leadId,
+      referrerId: lead.referrerId,
+      type: 'message',
+      description: 'Conversación iniciada por chat',
+      outcome: 'positive',
+      nextAction: 'Seguimiento de conversación',
+      createdBy: 'current-user',
+    });
+    
+    router.push(`/conversation?chatId=${chatId}`);
+    console.log('[Referral CRM] Chat started with lead:', lead.name);
+    return chatId;
+  }, [leads, chat, addInteraction]);
+
+  const sendMessageToLead = useCallback(async (leadId: string, message: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) {
+      throw new Error('Lead no encontrado');
+    }
+
+    const userId = lead.customFields?.userId as string | undefined;
+    if (!userId) {
+      throw new Error('El lead no tiene un chat asociado. Inicia un chat primero.');
+    }
+
+    const existingChat = chat.chats.find(c => 
+      c.type === 'individual' && 
+      c.participants.includes(userId)
+    );
+
+    if (!existingChat) {
+      return startChatWithLead(leadId);
+    }
+
+    await chat.sendMessage(existingChat.id, message);
+    
+    addInteraction({
+      leadId,
+      referrerId: lead.referrerId,
+      type: 'message',
+      description: `Mensaje enviado: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`,
+      outcome: 'positive',
+      createdBy: 'current-user',
+    });
+    
+    console.log('[Referral CRM] Message sent to lead:', lead.name);
+  }, [leads, chat, addInteraction, startChatWithLead]);
+
+  const notifyLeadConversion = useCallback(async (leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || lead.status !== 'converted') return;
+
+    await notifications.createNotification(
+      '🎉 ¡Lead Convertido!',
+      `${lead.name} se ha convertido en cliente. ¡Felicitaciones!`,
+      'referral_success',
+      'system',
+      { leadId, leadName: lead.name, commission: lead.commissionEarned },
+      'high'
+    );
+
+    const userId = lead.customFields?.userId as string | undefined;
+    if (userId) {
+      const existingChat = chat.chats.find(c => 
+        c.type === 'individual' && 
+        c.participants.includes(userId)
+      );
+
+      if (existingChat) {
+        const congratsMessage = `¡Felicitaciones ${lead.name}! 🎉 Te damos la bienvenida oficial a la familia NodoX. Estamos emocionados de tenerte con nosotros. Tu código de referido es: ${leadId.toUpperCase()}`;
+        await chat.sendMessage(existingChat.id, congratsMessage);
+      }
+    }
+
+    console.log('[Referral CRM] Conversion notification sent for:', lead.name);
+  }, [leads, notifications, chat]);
+
+  const sendBulkMessageToLeads = useCallback(async (
+    leadIds: string[],
+    message: string
+  ) => {
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    for (const leadId of leadIds) {
+      try {
+        await sendMessageToLead(leadId, message);
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`${leadId}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      }
+    }
+
+    await notifications.createNotification(
+      'Mensajes Enviados',
+      `${results.success} mensajes enviados exitosamente${results.failed > 0 ? `, ${results.failed} fallidos` : ''}`,
+      'system_update',
+      'system',
+      results,
+      'normal'
+    );
+
+    console.log('[Referral CRM] Bulk messages sent:', results);
+    return results;
+  }, [sendMessageToLead, notifications]);
+
+  const scheduleFollowUpMessage = useCallback(async (
+    leadId: string,
+    message: string,
+    delayMinutes: number
+  ) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) {
+      throw new Error('Lead no encontrado');
+    }
+
+    setTimeout(async () => {
+      try {
+        await sendMessageToLead(leadId, message);
+        await notifications.createNotification(
+          'Seguimiento Enviado',
+          `Mensaje de seguimiento enviado a ${lead.name}`,
+          'system_update',
+          'system',
+          { leadId, leadName: lead.name },
+          'normal'
+        );
+      } catch (error) {
+        console.error('[Referral CRM] Scheduled follow-up failed:', error);
+      }
+    }, delayMinutes * 60 * 1000);
+
+    await notifications.createNotification(
+      'Seguimiento Programado',
+      `Mensaje programado para ${lead.name} en ${delayMinutes} minutos`,
+      'system_update',
+      'system',
+      { leadId, leadName: lead.name, delayMinutes },
+      'low'
+    );
+
+    console.log('[Referral CRM] Follow-up message scheduled for:', lead.name);
+  }, [leads, sendMessageToLead, notifications]);
+
+  const getChatWithLead = useCallback((leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return null;
+
+    const userId = lead.customFields?.userId as string | undefined;
+    if (!userId) return null;
+
+    return chat.chats.find(c => 
+      c.type === 'individual' && 
+      c.participants.includes(userId)
+    );
+  }, [leads, chat.chats]);
+
   const analytics: ReferralAnalytics = useMemo(() => {
     const now = new Date();
     const periodDays = selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : selectedPeriod === 'quarter' ? 90 : 365;
@@ -679,5 +868,11 @@ export const useReferralCRM = () => {
     createCampaign,
     updateCampaign,
     getLeadCommissions,
+    startChatWithLead,
+    sendMessageToLead,
+    notifyLeadConversion,
+    sendBulkMessageToLeads,
+    scheduleFollowUpMessage,
+    getChatWithLead,
   };
 };

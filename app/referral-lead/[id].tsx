@@ -18,7 +18,7 @@ import { useReferralCRM } from "@/hooks/use-referral-crm";
 export default function ReferralLeadDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { leads } = useReferralCRM();
+  const { leads, startChatWithLead, getChatWithLead } = useReferralCRM();
   const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [newNote, setNewNote] = useState("");
 
@@ -84,6 +84,17 @@ export default function ReferralLeadDetail() {
     setNewNote("");
     setNoteModalVisible(false);
   };
+
+  const handleStartChat = async () => {
+    try {
+      await startChatWithLead(id!);
+    } catch (error) {
+      console.error('[Lead Detail] Error starting chat:', error);
+    }
+  };
+
+  const existingChat = getChatWithLead(id!);
+  const hasChatStarted = !!existingChat;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -183,9 +194,14 @@ export default function ReferralLeadDetail() {
         )}
 
         <View style={styles.actionsSection}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleStartChat}
+          >
             <MessageCircle color="#ffffff" size={20} />
-            <Text style={styles.actionButtonText}>Enviar mensaje</Text>
+            <Text style={styles.actionButtonText}>
+              {hasChatStarted ? 'Continuar conversación' : 'Iniciar chat'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.actionButton, styles.secondaryAction]}>
             <Edit color="#3b82f6" size={20} />

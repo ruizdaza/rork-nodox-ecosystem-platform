@@ -107,6 +107,12 @@ import {
   deleteReferralQRCodeProcedure,
   getQRCodeStatsProcedure,
 } from "@/backend/trpc/routes/referral/qr-codes/route";
+import {
+  startChatWithLeadProcedure,
+  sendMessageToLeadProcedure,
+  notifyLeadConversionProcedure,
+  sendBulkMessagesToLeadsProcedure,
+} from "@/backend/trpc/routes/referral/start-chat/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -201,6 +207,10 @@ export const appRouter = createTRPCRouter({
     trackQRConversion: trackQRConversionProcedure,
     deleteQRCode: deleteReferralQRCodeProcedure,
     getQRCodeStats: getQRCodeStatsProcedure,
+    startChat: startChatWithLeadProcedure,
+    sendMessageToLead: sendMessageToLeadProcedure,
+    notifyConversion: notifyLeadConversionProcedure,
+    sendBulkMessages: sendBulkMessagesToLeadsProcedure,
   }),
 });
 
