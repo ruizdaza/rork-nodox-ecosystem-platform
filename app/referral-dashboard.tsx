@@ -318,6 +318,16 @@ export default function ReferralDashboard() {
               </View>
               <Text style={styles.quickActionText}>Comisiones</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              onPress={() => router.push("/referral-qr-codes" as any)}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: "#8b5cf620" }]}>
+                <QrCode color="#8b5cf6" size={24} />
+              </View>
+              <Text style={styles.quickActionText}>Códigos QR</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 
@@ -572,6 +582,7 @@ export default function ReferralDashboard() {
                 style={[styles.shareOption, { width: (width - 80) / 3 }]}
                 onPress={() => {
                   setShareModalVisible(false);
+                  router.push("/referral-qr-codes" as any);
                 }}
               >
                 <QrCode color="#1e293b" size={24} />

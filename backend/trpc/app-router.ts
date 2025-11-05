@@ -97,6 +97,16 @@ import {
   getReferralStatsProcedure,
   getReferralAnalyticsProcedure,
 } from "@/backend/trpc/routes/referral/analytics/route";
+import {
+  getReferralQRCodesProcedure,
+  getReferralQRCodeProcedure,
+  createReferralQRCodeProcedure,
+  updateReferralQRCodeProcedure,
+  trackQRScanProcedure,
+  trackQRConversionProcedure,
+  deleteReferralQRCodeProcedure,
+  getQRCodeStatsProcedure,
+} from "@/backend/trpc/routes/referral/qr-codes/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -183,6 +193,14 @@ export const appRouter = createTRPCRouter({
     getCommissionSummary: getCommissionSummaryProcedure,
     getStats: getReferralStatsProcedure,
     getAnalytics: getReferralAnalyticsProcedure,
+    getQRCodes: getReferralQRCodesProcedure,
+    getQRCode: getReferralQRCodeProcedure,
+    createQRCode: createReferralQRCodeProcedure,
+    updateQRCode: updateReferralQRCodeProcedure,
+    trackQRScan: trackQRScanProcedure,
+    trackQRConversion: trackQRConversionProcedure,
+    deleteQRCode: deleteReferralQRCodeProcedure,
+    getQRCodeStats: getQRCodeStatsProcedure,
   }),
 });
 
