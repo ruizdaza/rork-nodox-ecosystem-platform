@@ -1704,41 +1704,53 @@ export default function AllyDashboard() {
         <Text style={styles.subsectionTitle}>Módulos ERP Disponibles</Text>
         
         <View style={styles.erpModulesGrid}>
-          <View style={styles.erpModuleCard}>
+          <TouchableOpacity 
+            style={styles.erpModuleCard}
+            onPress={() => router.push('/erp-inventory')}
+          >
             <Package color="#059669" size={32} />
             <Text style={styles.erpModuleTitle}>Inventario</Text>
             <Text style={styles.erpModuleDescription}>
               Control de stock, alertas de bajo inventario, movimientos
             </Text>
             <Text style={styles.erpModuleStatus}>✓ Activo</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.erpModuleCard}>
+          <TouchableOpacity 
+            style={styles.erpModuleCard}
+            onPress={() => router.push('/erp-inventory')}
+          >
             <Users color="#2563eb" size={32} />
             <Text style={styles.erpModuleTitle}>Proveedores</Text>
             <Text style={styles.erpModuleDescription}>
               Gestión de proveedores, órdenes de compra, pagos
             </Text>
             <Text style={styles.erpModuleStatus}>✓ Activo</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.erpModuleCard}>
-            <Receipt color="#7c3aed" size={32} />
-            <Text style={styles.erpModuleTitle}>Compras</Text>
+          <TouchableOpacity 
+            style={styles.erpModuleCard}
+            onPress={() => router.push('/pos-terminal')}
+          >
+            <CreditCard color="#7c3aed" size={32} />
+            <Text style={styles.erpModuleTitle}>Terminal POS</Text>
             <Text style={styles.erpModuleDescription}>
-              Órdenes de compra, recepción, facturación
+              Punto de venta integrado con inventario y contabilidad
             </Text>
             <Text style={styles.erpModuleStatus}>✓ Activo</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.erpModuleCard}>
+          <TouchableOpacity 
+            style={styles.erpModuleCard}
+            onPress={() => router.push('/accounting-dashboard')}
+          >
             <Calculator color="#ea580c" size={32} />
             <Text style={styles.erpModuleTitle}>Contabilidad</Text>
             <Text style={styles.erpModuleDescription}>
-              Libro diario, balance, estados financieros
+              Libro diario, balance, estados financieros en tiempo real
             </Text>
-            <Text style={styles.erpModuleStatus}>⚠ Próximamente</Text>
-          </View>
+            <Text style={styles.erpModuleStatus}>✓ Activo</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.erpStatsSection}>
@@ -1872,7 +1884,8 @@ export default function AllyDashboard() {
       case "erp":
         return renderERP();
       case "pos":
-        return renderPOS();
+        router.push('/pos-terminal');
+        return null;
       case "analytics":
         return renderAnalytics();
       case "cms":
@@ -1908,22 +1921,35 @@ export default function AllyDashboard() {
             <View style={styles.section}>
               <View style={styles.crmInfoCard}>
                 <Receipt color="#059669" size={32} />
-                <Text style={styles.crmInfoTitle}>Facturación Electrónica</Text>
+                <Text style={styles.crmInfoTitle}>Sistema Integrado de Facturación</Text>
                 <Text style={styles.crmInfoText}>
-                  • Facturas electrónicas válidas{"\n"}
-                  • CAE automático{"\n"}
-                  • Código QR y PDF{"\n"}
-                  • Envío por email{"\n"}
-                  • Reportes fiscales{"\n"}
-                  • Multi-moneda{"\n"}
-                  • Integración con AFIP
+                  • Terminal POS con inventario integrado{"\n"}
+                  • Facturación electrónica automática{"\n"}
+                  • Contabilidad en tiempo real{"\n"}
+                  • Sistema de pagos integrado{"\n"}
+                  • Reportes financieros completos{"\n"}
+                  • Control de inventario automático
                 </Text>
-                <TouchableOpacity 
-                  style={styles.primaryActionButton}
-                  onPress={() => router.push('/electronic-invoicing')}
-                >
-                  <Text style={styles.primaryActionButtonText}>Gestionar Facturas</Text>
-                </TouchableOpacity>
+                <View style={styles.quickActionsGrid}>
+                  <TouchableOpacity 
+                    style={styles.primaryActionButton}
+                    onPress={() => router.push('/pos-terminal')}
+                  >
+                    <Text style={styles.primaryActionButtonText}>Terminal POS</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.primaryActionButton}
+                    onPress={() => router.push('/accounting-dashboard')}
+                  >
+                    <Text style={styles.primaryActionButtonText}>Contabilidad</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.primaryActionButton}
+                    onPress={() => router.push('/electronic-invoicing')}
+                  >
+                    <Text style={styles.primaryActionButtonText}>Facturación</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </ScrollView>
