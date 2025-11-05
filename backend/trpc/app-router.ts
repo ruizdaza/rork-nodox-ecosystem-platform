@@ -9,6 +9,95 @@ import { getChatsProcedure } from "@/backend/trpc/routes/chat/get-chats/route";
 import { getMessagesProcedure } from "@/backend/trpc/routes/chat/get-messages/route";
 import { getUsersProcedure } from "@/backend/trpc/routes/chat/get-users/route";
 
+import {
+  getInventoryItemsProcedure,
+  getInventoryItemProcedure,
+  createInventoryItemProcedure,
+  updateInventoryItemProcedure,
+  deleteInventoryItemProcedure,
+} from "@/backend/trpc/routes/inventory/get-items/route";
+import {
+  getInventoryMovementsProcedure,
+  createInventoryMovementProcedure,
+} from "@/backend/trpc/routes/inventory/movements/route";
+import {
+  getSuppliersProcedure,
+  createSupplierProcedure,
+  updateSupplierProcedure,
+} from "@/backend/trpc/routes/inventory/suppliers/route";
+import {
+  getPurchaseOrdersProcedure,
+  createPurchaseOrderProcedure,
+  updatePurchaseOrderProcedure,
+  receiveItemsProcedure,
+} from "@/backend/trpc/routes/inventory/purchase-orders/route";
+import { getStockAlertsProcedure } from "@/backend/trpc/routes/inventory/alerts/route";
+
+import {
+  getPOSTransactionsProcedure,
+  createPOSTransactionProcedure,
+  refundPOSTransactionProcedure,
+  cancelPOSTransactionProcedure,
+} from "@/backend/trpc/routes/pos/transactions/route";
+import {
+  getPOSSessionsProcedure,
+  getActivePOSSessionProcedure,
+  openPOSSessionProcedure,
+  closePOSSessionProcedure,
+} from "@/backend/trpc/routes/pos/sessions/route";
+import {
+  getPOSProductsProcedure,
+  createPOSProductProcedure,
+  updatePOSProductProcedure,
+  deletePOSProductProcedure,
+} from "@/backend/trpc/routes/pos/products/route";
+import { getPOSStatsProcedure } from "@/backend/trpc/routes/pos/stats/route";
+
+import {
+  getAccountingAccountsProcedure,
+  createAccountingAccountProcedure,
+  updateAccountingAccountProcedure,
+  updateAccountBalanceProcedure,
+} from "@/backend/trpc/routes/accounting/accounts/route";
+import {
+  getJournalEntriesProcedure,
+  createJournalEntryProcedure,
+  postJournalEntryProcedure,
+  voidJournalEntryProcedure,
+} from "@/backend/trpc/routes/accounting/journal-entries/route";
+import {
+  getTrialBalanceProcedure,
+  getBalanceSheetProcedure,
+  getIncomeStatementProcedure,
+  getGeneralLedgerProcedure,
+} from "@/backend/trpc/routes/accounting/reports/route";
+
+import {
+  getReferralLeadsProcedure,
+  getReferralLeadProcedure,
+  createReferralLeadProcedure,
+  updateReferralLeadProcedure,
+  deleteReferralLeadProcedure,
+  updateLeadSpentProcedure,
+} from "@/backend/trpc/routes/referral/leads/route";
+import {
+  getReferralCampaignsProcedure,
+  createReferralCampaignProcedure,
+  updateReferralCampaignProcedure,
+  updateCampaignMetricsProcedure,
+  deleteCampaignProcedure,
+} from "@/backend/trpc/routes/referral/campaigns/route";
+import {
+  getReferralCommissionsProcedure,
+  createReferralCommissionProcedure,
+  updateCommissionStatusProcedure,
+  getCommissionSummaryProcedure,
+} from "@/backend/trpc/routes/referral/commissions/route";
+import {
+  getReferralStatsProcedure,
+  getReferralAnalyticsProcedure,
+} from "@/backend/trpc/routes/referral/analytics/route";
+
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
     hi: hiRoute,
@@ -29,6 +118,71 @@ export const appRouter = createTRPCRouter({
     getChats: getChatsProcedure,
     getMessages: getMessagesProcedure,
     getUsers: getUsersProcedure,
+  }),
+  inventory: createTRPCRouter({
+    getItems: getInventoryItemsProcedure,
+    getItem: getInventoryItemProcedure,
+    createItem: createInventoryItemProcedure,
+    updateItem: updateInventoryItemProcedure,
+    deleteItem: deleteInventoryItemProcedure,
+    getMovements: getInventoryMovementsProcedure,
+    createMovement: createInventoryMovementProcedure,
+    getSuppliers: getSuppliersProcedure,
+    createSupplier: createSupplierProcedure,
+    updateSupplier: updateSupplierProcedure,
+    getPurchaseOrders: getPurchaseOrdersProcedure,
+    createPurchaseOrder: createPurchaseOrderProcedure,
+    updatePurchaseOrder: updatePurchaseOrderProcedure,
+    receiveItems: receiveItemsProcedure,
+    getStockAlerts: getStockAlertsProcedure,
+  }),
+  pos: createTRPCRouter({
+    getTransactions: getPOSTransactionsProcedure,
+    createTransaction: createPOSTransactionProcedure,
+    refundTransaction: refundPOSTransactionProcedure,
+    cancelTransaction: cancelPOSTransactionProcedure,
+    getSessions: getPOSSessionsProcedure,
+    getActiveSession: getActivePOSSessionProcedure,
+    openSession: openPOSSessionProcedure,
+    closeSession: closePOSSessionProcedure,
+    getProducts: getPOSProductsProcedure,
+    createProduct: createPOSProductProcedure,
+    updateProduct: updatePOSProductProcedure,
+    deleteProduct: deletePOSProductProcedure,
+    getStats: getPOSStatsProcedure,
+  }),
+  accounting: createTRPCRouter({
+    getAccounts: getAccountingAccountsProcedure,
+    createAccount: createAccountingAccountProcedure,
+    updateAccount: updateAccountingAccountProcedure,
+    updateAccountBalance: updateAccountBalanceProcedure,
+    getJournalEntries: getJournalEntriesProcedure,
+    createJournalEntry: createJournalEntryProcedure,
+    postJournalEntry: postJournalEntryProcedure,
+    voidJournalEntry: voidJournalEntryProcedure,
+    getTrialBalance: getTrialBalanceProcedure,
+    getBalanceSheet: getBalanceSheetProcedure,
+    getIncomeStatement: getIncomeStatementProcedure,
+    getGeneralLedger: getGeneralLedgerProcedure,
+  }),
+  referral: createTRPCRouter({
+    getLeads: getReferralLeadsProcedure,
+    getLead: getReferralLeadProcedure,
+    createLead: createReferralLeadProcedure,
+    updateLead: updateReferralLeadProcedure,
+    deleteLead: deleteReferralLeadProcedure,
+    updateLeadSpent: updateLeadSpentProcedure,
+    getCampaigns: getReferralCampaignsProcedure,
+    createCampaign: createReferralCampaignProcedure,
+    updateCampaign: updateReferralCampaignProcedure,
+    updateCampaignMetrics: updateCampaignMetricsProcedure,
+    deleteCampaign: deleteCampaignProcedure,
+    getCommissions: getReferralCommissionsProcedure,
+    createCommission: createReferralCommissionProcedure,
+    updateCommissionStatus: updateCommissionStatusProcedure,
+    getCommissionSummary: getCommissionSummaryProcedure,
+    getStats: getReferralStatsProcedure,
+    getAnalytics: getReferralAnalyticsProcedure,
   }),
 });
 
