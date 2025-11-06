@@ -136,9 +136,10 @@ export const NotificationAnalyticsDashboard: React.FC = () => {
   // Hourly engagement data
   const hourlyData = useMemo(() => {
     const hourlyStats = Array(24).fill(0).map((_, hour) => {
-      const hourAnalytics = analytics.analytics.filter(
-        item => item.sentAt.getHours() === hour
-      );
+      const hourAnalytics = analytics.analytics.filter(item => {
+        const sentAt = item.sentAt instanceof Date ? item.sentAt : new Date(item.sentAt);
+        return sentAt.getHours() === hour;
+      });
       const opened = hourAnalytics.filter(item => item.openedAt).length;
       return hourAnalytics.length > 0 ? (opened / hourAnalytics.length) * 100 : 0;
     });
