@@ -113,6 +113,12 @@ import {
   notifyLeadConversionProcedure,
   sendBulkMessagesToLeadsProcedure,
 } from "@/backend/trpc/routes/referral/start-chat/route";
+import { getBalanceProcedure } from "@/backend/trpc/routes/wallet/get-balance/route";
+import { getTransactionsProcedure } from "@/backend/trpc/routes/wallet/get-transactions/route";
+import { rechargeProcedure } from "@/backend/trpc/routes/wallet/recharge/route";
+import { sendMoneyProcedure } from "@/backend/trpc/routes/wallet/send-money/route";
+import { exchangeProcedure } from "@/backend/trpc/routes/wallet/exchange/route";
+import { getStatsProcedure } from "@/backend/trpc/routes/wallet/get-stats/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -211,6 +217,14 @@ export const appRouter = createTRPCRouter({
     sendMessageToLead: sendMessageToLeadProcedure,
     notifyConversion: notifyLeadConversionProcedure,
     sendBulkMessages: sendBulkMessagesToLeadsProcedure,
+  }),
+  wallet: createTRPCRouter({
+    getBalance: getBalanceProcedure,
+    getTransactions: getTransactionsProcedure,
+    recharge: rechargeProcedure,
+    sendMoney: sendMoneyProcedure,
+    exchange: exchangeProcedure,
+    getStats: getStatsProcedure,
   }),
 });
 

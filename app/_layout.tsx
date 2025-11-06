@@ -16,6 +16,7 @@ import { BusinessIntelligenceProvider } from "@/hooks/use-business-intelligence"
 import { AutomationProvider } from "@/hooks/use-automation";
 import { InternationalizationProvider } from "@/hooks/use-internationalization";
 import { BulkMessagingProvider } from "@/hooks/use-bulk-messaging";
+import { WalletProvider } from "@/hooks/use-wallet";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 import { trpc, trpcClient } from "@/lib/trpc";
@@ -65,6 +66,7 @@ function RootLayoutNav() {
       <Stack.Screen name="bulk-messaging" options={{ headerShown: false }} />
       <Stack.Screen name="bulk-messaging-campaign" options={{ headerShown: false }} />
       <Stack.Screen name="bulk-messaging-analytics" options={{ headerShown: false }} />
+      <Stack.Screen name="wallet-settings" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
 }
@@ -87,6 +89,7 @@ export default function RootLayout() {
             <NotificationAnalyticsProvider>
               <NotificationProvider>
                 <NodoXProvider>
+                <WalletProvider>
                 <TransactionProvider>
                   <ReviewProvider>
                     <ChatProvider>
@@ -108,6 +111,7 @@ export default function RootLayout() {
                     </ChatProvider>
                   </ReviewProvider>
                 </TransactionProvider>
+                </WalletProvider>
                 </NodoXProvider>
               </NotificationProvider>
             </NotificationAnalyticsProvider>
