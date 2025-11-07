@@ -119,6 +119,21 @@ import { rechargeProcedure } from "@/backend/trpc/routes/wallet/recharge/route";
 import { sendMoneyProcedure } from "@/backend/trpc/routes/wallet/send-money/route";
 import { exchangeProcedure } from "@/backend/trpc/routes/wallet/exchange/route";
 import { getStatsProcedure } from "@/backend/trpc/routes/wallet/get-stats/route";
+import {
+  getBulkCampaignsProcedure,
+  createBulkCampaignProcedure,
+  updateCampaignStatusProcedure,
+  sendBulkCampaignProcedure,
+  getBulkCampaignAnalyticsProcedure,
+} from "@/backend/trpc/routes/bulk-messaging/campaigns/route";
+import {
+  getBulkMessagingPlansProcedure,
+  getBulkSubscriptionProcedure,
+  createBulkSubscriptionProcedure,
+  updateBulkSubscriptionProcedure,
+  cancelBulkSubscriptionProcedure,
+  getBulkMessagingUsageStatsProcedure,
+} from "@/backend/trpc/routes/bulk-messaging/subscriptions/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -225,6 +240,19 @@ export const appRouter = createTRPCRouter({
     sendMoney: sendMoneyProcedure,
     exchange: exchangeProcedure,
     getStats: getStatsProcedure,
+  }),
+  bulkMessaging: createTRPCRouter({
+    getCampaigns: getBulkCampaignsProcedure,
+    createCampaign: createBulkCampaignProcedure,
+    updateCampaignStatus: updateCampaignStatusProcedure,
+    sendCampaign: sendBulkCampaignProcedure,
+    getCampaignAnalytics: getBulkCampaignAnalyticsProcedure,
+    getPlans: getBulkMessagingPlansProcedure,
+    getSubscription: getBulkSubscriptionProcedure,
+    createSubscription: createBulkSubscriptionProcedure,
+    updateSubscription: updateBulkSubscriptionProcedure,
+    cancelSubscription: cancelBulkSubscriptionProcedure,
+    getUsageStats: getBulkMessagingUsageStatsProcedure,
   }),
 });
 
