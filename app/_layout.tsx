@@ -103,7 +103,7 @@ export default function RootLayout() {
                                   <RootLayoutNav />
                                 </ErrorBoundary>
                               </GestureHandlerRootView>
-                              </AutomationProvider>
+                            </AutomationProvider>
                             </BusinessIntelligenceProvider>
                           </AnalyticsProvider>
                         </PremiumFeaturesProvider>
