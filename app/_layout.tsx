@@ -98,12 +98,12 @@ export default function RootLayout() {
                           <AnalyticsProvider>
                             <BusinessIntelligenceProvider>
                               <AutomationProvider>
-                              <GestureHandlerRootView style={styles.container}>
-                                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
-                                  <RootLayoutNav />
-                                </ErrorBoundary>
-                              </GestureHandlerRootView>
-                            </AutomationProvider>
+                                <GestureHandlerRootView style={styles.container}>
+                                  <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                                    <RootLayoutNav />
+                                  </ErrorBoundary>
+                                </GestureHandlerRootView>
+                              </AutomationProvider>
                             </BusinessIntelligenceProvider>
                           </AnalyticsProvider>
                         </PremiumFeaturesProvider>
