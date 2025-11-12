@@ -9,7 +9,7 @@ import { ChatProvider } from "@/hooks/use-chat";
 import { NotificationProvider } from "@/hooks/use-notifications";
 import { NotificationAnalyticsProvider } from "@/hooks/use-notification-analytics";
 import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
-import { AnalyticsProvider } from "@/hooks/use-analytics";
+import { AnalyticsProvider as ChatAnalyticsProvider } from "@/hooks/use-analytics";
 import { ReviewProvider } from "@/hooks/use-reviews";
 import { TransactionProvider } from "@/hooks/use-transactions";
 import { BusinessIntelligenceProvider } from "@/hooks/use-business-intelligence";
@@ -95,7 +95,7 @@ export default function RootLayout() {
                     <ChatProvider>
                       <BulkMessagingProvider>
                         <PremiumFeaturesProvider>
-                          <AnalyticsProvider>
+                          <ChatAnalyticsProvider>
                             <BusinessIntelligenceProvider>
                               <AutomationProvider>
                                 <GestureHandlerRootView style={styles.container}>
@@ -105,7 +105,7 @@ export default function RootLayout() {
                                 </GestureHandlerRootView>
                               </AutomationProvider>
                             </BusinessIntelligenceProvider>
-                          </AnalyticsProvider>
+                          </ChatAnalyticsProvider>
                         </PremiumFeaturesProvider>
                       </BulkMessagingProvider>
                     </ChatProvider>
