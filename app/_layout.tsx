@@ -9,7 +9,7 @@ import { ChatProvider } from "@/hooks/use-chat";
 import { NotificationProvider } from "@/hooks/use-notifications";
 import { NotificationAnalyticsProvider } from "@/hooks/use-notification-analytics";
 import { PremiumFeaturesProvider } from "@/hooks/use-premium-features";
-import { AnalyticsProvider as ChatAnalyticsProvider } from "@/hooks/use-analytics";
+import { AnalyticsProvider } from "@/hooks/use-analytics";
 import { ReviewProvider } from "@/hooks/use-reviews";
 import { TransactionProvider } from "@/hooks/use-transactions";
 import { BusinessIntelligenceProvider } from "@/hooks/use-business-intelligence";
@@ -89,27 +89,29 @@ export default function RootLayout() {
             <NotificationAnalyticsProvider>
               <NotificationProvider>
                 <NodoXProvider>
-                  <WalletProvider>
-                    <TransactionProvider>
-                      <ReviewProvider>
-                        <ChatProvider>
-                          <BulkMessagingProvider>
-                            <PremiumFeaturesProvider>
-                              <ChatAnalyticsProvider>
-                                <BusinessIntelligenceProvider>
-                                  <AutomationProvider>
-                                    <GestureHandlerRootView style={styles.container}>
-                                      <RootLayoutNav />
-                                    </GestureHandlerRootView>
-                                  </AutomationProvider>
-                                </BusinessIntelligenceProvider>
-                              </ChatAnalyticsProvider>
-                            </PremiumFeaturesProvider>
-                          </BulkMessagingProvider>
-                        </ChatProvider>
-                      </ReviewProvider>
-                    </TransactionProvider>
-                  </WalletProvider>
+                <WalletProvider>
+                <TransactionProvider>
+                  <ReviewProvider>
+                    <ChatProvider>
+                      <BulkMessagingProvider>
+                        <PremiumFeaturesProvider>
+                          <AnalyticsProvider>
+                            <BusinessIntelligenceProvider>
+                              <AutomationProvider>
+                              <GestureHandlerRootView style={styles.container}>
+                                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                                  <RootLayoutNav />
+                                </ErrorBoundary>
+                              </GestureHandlerRootView>
+                              </AutomationProvider>
+                            </BusinessIntelligenceProvider>
+                          </AnalyticsProvider>
+                        </PremiumFeaturesProvider>
+                      </BulkMessagingProvider>
+                    </ChatProvider>
+                  </ReviewProvider>
+                </TransactionProvider>
+                </WalletProvider>
                 </NodoXProvider>
               </NotificationProvider>
             </NotificationAnalyticsProvider>

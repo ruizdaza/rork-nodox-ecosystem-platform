@@ -11,7 +11,7 @@ const createCampaignSchema = z.object({
     content: z.string(),
     type: z.enum(["text", "rich", "template"]),
     templateId: z.string().optional(),
-    variables: z.object({}).passthrough().optional(),
+    variables: z.record(z.string()).optional(),
     attachments: z.array(
       z.object({
         url: z.string(),
