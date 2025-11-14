@@ -89,27 +89,27 @@ export default function RootLayout() {
             <NotificationAnalyticsProvider>
               <NotificationProvider>
                 <NodoXProvider>
-                <WalletProvider>
-                <TransactionProvider>
-                  <ReviewProvider>
-                    <ChatProvider>
-                      <BulkMessagingProvider>
-                        <PremiumFeaturesProvider>
-                          <ChatAnalyticsProvider>
-                            <BusinessIntelligenceProvider>
-                              <AutomationProvider>
-                                <GestureHandlerRootView style={styles.container}>
-                                  <RootLayoutNav />
-                                </GestureHandlerRootView>
-                              </AutomationProvider>
-                            </BusinessIntelligenceProvider>
-                          </ChatAnalyticsProvider>
-                        </PremiumFeaturesProvider>
-                      </BulkMessagingProvider>
-                    </ChatProvider>
-                  </ReviewProvider>
-                </TransactionProvider>
-                </WalletProvider>
+                  <WalletProvider>
+                    <TransactionProvider>
+                      <ReviewProvider>
+                        <ChatProvider>
+                          <BulkMessagingProvider>
+                            <PremiumFeaturesProvider>
+                              <ChatAnalyticsProvider>
+                                <BusinessIntelligenceProvider>
+                                  <AutomationProvider>
+                                    <GestureHandlerRootView style={styles.container}>
+                                      <RootLayoutNav />
+                                    </GestureHandlerRootView>
+                                  </AutomationProvider>
+                                </BusinessIntelligenceProvider>
+                              </ChatAnalyticsProvider>
+                            </PremiumFeaturesProvider>
+                          </BulkMessagingProvider>
+                        </ChatProvider>
+                      </ReviewProvider>
+                    </TransactionProvider>
+                  </WalletProvider>
                 </NodoXProvider>
               </NotificationProvider>
             </NotificationAnalyticsProvider>
