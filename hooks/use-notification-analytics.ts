@@ -271,11 +271,7 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
           const parsed = JSON.parse(stored);
           return parsed.map((item: any) => ({
             ...item,
-            sentAt: new Date(item.sentAt),
-            deliveredAt: item.deliveredAt ? new Date(item.deliveredAt) : undefined,
-            openedAt: item.openedAt ? new Date(item.openedAt) : undefined,
-            clickedAt: item.clickedAt ? new Date(item.clickedAt) : undefined,
-            dismissedAt: item.dismissedAt ? new Date(item.dismissedAt) : undefined,
+            date: new Date(item.date),
           }));
         }
         return mockAnalytics;
@@ -527,8 +523,7 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
         if (filters.type && item.type !== filters.type) return false;
         if (filters.category && item.category !== filters.category) return false;
         if (filters.dateRange) {
-          const sentAtDate = item.sentAt instanceof Date ? item.sentAt : new Date(item.sentAt);
-          const sentAt = sentAtDate.getTime();
+          const sentAt = item.sentAt.getTime();
           if (sentAt < filters.dateRange.start.getTime() || sentAt > filters.dateRange.end.getTime()) {
             return false;
           }
@@ -679,8 +674,7 @@ export const [NotificationAnalyticsProvider, useNotificationAnalytics] = createC
 
     // Time-based insights
     const hourlyData = analytics.reduce((acc, item) => {
-      const sentAt = item.sentAt instanceof Date ? item.sentAt : new Date(item.sentAt);
-      const hour = sentAt.getHours();
+      const hour = item.sentAt.getHours();
       if (!acc[hour]) acc[hour] = { sent: 0, opened: 0 };
       acc[hour].sent++;
       if (item.openedAt) acc[hour].opened++;

@@ -524,14 +524,15 @@ export default function ConversationScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen 
         options={{
           headerShown: true,
           headerStyle: { backgroundColor: '#ffffff' },
           headerShadowVisible: true,
           headerTitle: () => (
-            <View style={styles.headerContent}>
+            <TouchableOpacity style={styles.headerContent}>
+              <NodoXLogo size="small" showText={false} style={styles.headerLogo} />
               <View style={styles.headerInfo}>
                 {avatar ? (
                   <Image source={{ uri: avatar }} style={styles.headerAvatar} />
@@ -543,13 +544,13 @@ export default function ConversationScreen() {
                   </View>
                 )}
                 <View style={styles.headerText}>
-                  <Text style={styles.headerName} numberOfLines={1}>{chatName}</Text>
+                  <Text style={styles.headerName}>{chatName}</Text>
                   <Text style={styles.headerStatus}>
                     {isOnline ? 'En línea' : 'Desconectado'}
                   </Text>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           ),
           headerLeft: () => (
             <TouchableOpacity 
@@ -561,11 +562,20 @@ export default function ConversationScreen() {
           ),
           headerRight: () => (
             <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.headerAction}>
+                <Phone size={20} color="#64748b" />
+              </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.headerAction}
                 onPress={handleVideoCall}
               >
                 <Video size={20} color={hasFeature('videoCalls') ? "#2563eb" : "#cbd5e1"} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.headerAction}
+                onPress={handleShowSatisfactionSurvey}
+              >
+                <Star size={20} color="#64748b" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerAction}>
                 <MoreVertical size={20} color="#64748b" />
@@ -576,9 +586,9 @@ export default function ConversationScreen() {
       />
 
       <KeyboardAvoidingView 
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
           ref={flatListRef}
@@ -595,12 +605,8 @@ export default function ConversationScreen() {
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={() => {
-            setTimeout(() => {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+            flatListRef.current?.scrollToEnd({ animated: true });
           }}
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
         />
 
         <View style={styles.inputContainer}>
@@ -684,9 +690,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  keyboardView: {
-    flex: 1,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -713,6 +716,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: 8,
+  },
+  headerLogo: {
+    marginRight: 4,
   },
   headerBack: {
     marginRight: 8,
@@ -721,7 +728,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    maxWidth: '100%',
   },
   headerAvatar: {
     width: 36,
@@ -741,12 +747,10 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
-    marginLeft: 8,
-    maxWidth: '80%',
   },
   headerName: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#1e293b',
   },
   headerStatus: {
@@ -757,7 +761,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
   headerAction: {
     width: 36,
@@ -768,12 +772,10 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   messagesContent: {
     paddingVertical: 16,
     paddingHorizontal: 16,
-    flexGrow: 1,
   },
   messageContainer: {
     marginVertical: 2,
@@ -785,10 +787,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    maxWidth: '80%',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
     marginVertical: 2,
   },
   ownBubble: {
@@ -831,37 +833,29 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
-    minHeight: 60,
   },
   attachButton: {
-    marginRight: 8,
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginRight: 12,
+    marginBottom: 10,
   },
   textInputContainer: {
     flex: 1,
     backgroundColor: '#f1f5f9',
     borderRadius: 22,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
+    paddingVertical: 10,
+    marginRight: 12,
     justifyContent: 'center',
-    minHeight: 40,
   },
   textInput: {
     fontSize: 16,
     color: '#1e293b',
     maxHeight: 100,
-    minHeight: 20,
-    paddingTop: 0,
-    paddingBottom: 0,
   },
   sendButton: {
     width: 40,
@@ -872,9 +866,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   micButton: {
-    padding: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginBottom: 10,
   },
   audioBubble: {
     flexDirection: 'row',
