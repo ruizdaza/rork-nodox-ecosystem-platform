@@ -64,8 +64,6 @@ function RootLayoutNav() {
       <Stack.Screen name="referral-lead/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="referral-leads" options={{ headerShown: false }} />
       <Stack.Screen name="bulk-messaging" options={{ headerShown: false }} />
-      <Stack.Screen name="bulk-messaging-campaign" options={{ headerShown: false }} />
-      <Stack.Screen name="bulk-messaging-analytics" options={{ headerShown: false }} />
       <Stack.Screen name="wallet-settings" options={{ headerShown: false, presentation: "modal" }} />
     </Stack>
   );
