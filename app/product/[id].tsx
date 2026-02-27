@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,9 +19,11 @@ import {
   ShoppingCart,
   Truck,
   ShieldCheck,
-  ChevronRight,
+  MessageCircle,
 } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
+import { trpc } from '@/lib/trpc';
+import { NcopDisplay } from '@/components/NcopDisplay'; // Use standardized display
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +32,9 @@ export default function ProductDetailScreen() {
   const { products, addToCart } = useMarketplace();
   const [selectedImage, setSelectedImage] = useState<number>(0);
   const [quantity, setQuantity] = useState<number>(1);
+  const [creatingChat, setCreatingChat] = useState(false);
+
+  const createConversationMutation = trpc.chat.createConversation.useMutation();
 
   const product = products.find((p) => p.id === id);
 
@@ -53,6 +59,28 @@ export default function ProductDetailScreen() {
     router.push('/cart');
   };
 
+  const handleContactSeller = async () => {
+    if (!product.sellerId) return;
+
+    setCreatingChat(true);
+    try {
+        const result = await createConversationMutation.mutateAsync({
+            participantId: product.sellerId,
+            contextType: 'product',
+            contextId: product.id
+        });
+
+        router.push({
+            pathname: '/conversation',
+            params: { id: result.conversationId, name: product.sellerName }
+        });
+    } catch (error) {
+        Alert.alert("Error", "No se pudo iniciar el chat");
+    } finally {
+        setCreatingChat(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
@@ -75,7 +103,7 @@ export default function ProductDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.imageSection}>
           <Image
-            source={{ uri: product.images[selectedImage] }}
+            source={{ uri: product.images?.[selectedImage] || 'https://placehold.co/600x400' }}
             style={styles.mainImage}
           />
           <ScrollView
@@ -84,7 +112,7 @@ export default function ProductDetailScreen() {
             style={styles.thumbnailScroll}
             contentContainerStyle={styles.thumbnailContainer}
           >
-            {product.images.map((image, index) => (
+            {product.images?.map((image, index) => (
               <TouchableOpacity
                 key={index}
                 onPress={() => setSelectedImage(index)}
@@ -106,25 +134,29 @@ export default function ProductDetailScreen() {
               style={styles.sellerAvatar}
             />
             <View style={styles.sellerDetails}>
-              <Text style={styles.sellerName}>{product.sellerName}</Text>
+              <Text style={styles.sellerName}>{product.sellerName || 'Vendedor'}</Text>
               <View style={styles.ratingContainer}>
                 <Star color="#fbbf24" size={14} fill="#fbbf24" />
-                <Text style={styles.rating}>{product.rating}</Text>
-                <Text style={styles.reviewCount}>({product.reviewCount} reseñas)</Text>
+                <Text style={styles.rating}>{product.rating || 0}</Text>
+                <Text style={styles.reviewCount}>({product.reviewCount || 0} reseñas)</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.contactButton}>
-              <Text style={styles.contactButtonText}>Contactar</Text>
+            <TouchableOpacity
+                style={styles.contactButton}
+                onPress={handleContactSeller}
+                disabled={creatingChat}
+            >
+              <MessageCircle size={16} color="#2563eb" />
+              <Text style={styles.contactButtonText}>
+                  {creatingChat ? "..." : "Contactar"}
+              </Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.productName}>{product.name}</Text>
           
           <View style={styles.priceSection}>
-            <View style={styles.priceContainer}>
-              <Text style={styles.price}>${product.price.toLocaleString()}</Text>
-              <Text style={styles.ncopPrice}>{product.ncopPrice} NCOP</Text>
-            </View>
+            <NcopDisplay value={product.ncopPrice || (product.price * 100)} />
             <View style={styles.stockBadge}>
               <Text style={styles.stockText}>
                 {product.stock > 0 ? `Stock: ${product.stock}` : 'Agotado'}
@@ -132,42 +164,30 @@ export default function ProductDetailScreen() {
             </View>
           </View>
 
-          {product.shipping && (
-            <View style={styles.shippingSection}>
-              <View style={styles.shippingItem}>
-                <Truck color="#10b981" size={20} />
-                <Text style={styles.shippingText}>
-                  {product.shipping.freeShipping
-                    ? 'Envío gratis'
-                    : `Envío: $${product.shipping.shippingCost.toLocaleString()}`}
-                </Text>
-              </View>
-              <View style={styles.shippingItem}>
-                <ShieldCheck color="#2563eb" size={20} />
-                <Text style={styles.shippingText}>
-                  Entrega estimada: {product.shipping.estimatedDays} días
-                </Text>
-              </View>
+          {/* Shipping Mock Logic based on price */}
+          <View style={styles.shippingSection}>
+            <View style={styles.shippingItem}>
+            <Truck color="#10b981" size={20} />
+            <Text style={styles.shippingText}>
+                {product.price > 100000 // Mock threshold
+                ? 'Envío gratis'
+                : `Envío calculado al pagar`}
+            </Text>
             </View>
-          )}
+            <View style={styles.shippingItem}>
+            <ShieldCheck color="#2563eb" size={20} />
+            <Text style={styles.shippingText}>
+                Entrega estimada: 3-5 días
+            </Text>
+            </View>
+          </View>
 
           <View style={styles.descriptionSection}>
             <Text style={styles.sectionTitle}>Descripción</Text>
             <Text style={styles.description}>{product.description}</Text>
           </View>
 
-          {product.specifications && Object.keys(product.specifications).length > 0 && (
-            <View style={styles.specificationsSection}>
-              <Text style={styles.sectionTitle}>Especificaciones</Text>
-              {Object.entries(product.specifications).map(([key, value]) => (
-                <View key={key} style={styles.specItem}>
-                  <Text style={styles.specKey}>{key}</Text>
-                  <Text style={styles.specValue}>{value}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
+          {/* Tags */}
           {product.tags && product.tags.length > 0 && (
             <View style={styles.tagsSection}>
               <Text style={styles.sectionTitle}>Etiquetas</Text>
@@ -309,6 +329,9 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
   },
   contactButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#eff6ff',
