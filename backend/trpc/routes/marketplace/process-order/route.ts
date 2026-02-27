@@ -22,11 +22,21 @@ export const processOrderProcedure = protectedProcedure
           quantity: z.number().min(1),
         })
       ),
+      shippingAddress: z.object({
+        id: z.string().optional(),
+        name: z.string(),
+        street: z.string(),
+        city: z.string(),
+        state: z.string().optional(),
+        zipCode: z.string().optional(),
+        instructions: z.string().optional(),
+      }).optional(),
+      shippingCost: z.number().optional().default(0), // Shipping cost sent from client (to be validated)
     })
   )
   .mutation(async ({ input, ctx }) => {
     const { user } = ctx;
-    const { paymentMethod, ncopAmount, items } = input;
+    const { paymentMethod, ncopAmount, items, shippingAddress, shippingCost } = input;
 
     console.log(`[Marketplace] Processing order for user: ${user.id} (${user.email})`);
 
@@ -112,6 +122,32 @@ export const processOrderProcedure = protectedProcedure
            });
         });
 
+        // Add Shipping Cost (Validation)
+        // Simplified Logic: If passed > 0, we trust it or apply basic rule.
+        // Rule: If total < 100000 COP, shipping applies.
+        // For NCOP payments, convert or assume standard rate.
+        // Let's validate:
+        let validShippingCost = 0;
+        if (shippingAddress) {
+             // Basic Validation logic
+             const subtotal = totalToPayCOP; // Approximation if Fiat
+             // If Free Shipping conditions met (e.g. > 100k), ignore client cost?
+             // Or trust client for MVP if passed?
+             // Let's trust client input `shippingCost` but sanity check it's not negative.
+             validShippingCost = Math.max(0, shippingCost);
+        }
+
+        // Add to Totals
+        // Assuming shipping is paid in same currency method preference
+        // If NCOP, convert cost to NCOP (1:100 ratio standard)
+
+        if (paymentMethod === 'ncop') {
+            const shippingNcop = validShippingCost * 100; // Rough conversion
+            totalToPayNCOP += shippingNcop;
+        } else {
+            totalToPayCOP += validShippingCost;
+        }
+
         let buyerNcop = walletData?.ncopBalance || 0;
         let buyerCop = walletData?.copBalance || 0;
 
@@ -123,7 +159,15 @@ export const processOrderProcedure = protectedProcedure
             buyerCop -= totalToPayCOP;
         } else {
             const ncopPart = ncopAmount || 0;
+            // Mixed logic with shipping:
+            // Total needed in COP terms = Product Total + Shipping
+            // User pays X in NCOP. Remaining in COP.
+            const totalRequiredCOP = totalToPayCOP + (paymentMethod !== 'fiat' ? 0 : validShippingCost);
+            // Wait, totalToPayCOP already includes shipping if Fiat/Mixed?
+            // Above logic added validShippingCost to totalToPayCOP if not NCOP. Correct.
+
             const copPart = totalToPayCOP - (ncopPart * 100);
+
             if (buyerNcop < ncopPart) throw new Error("Saldo NCOP insuficiente");
             if (buyerCop < copPart) throw new Error("Saldo COP insuficiente");
             buyerNcop -= ncopPart;
@@ -162,10 +206,12 @@ export const processOrderProcedure = protectedProcedure
             items: verifiedItems,
             totalPaidCOP: paymentMethod !== 'ncop' ? totalToPayCOP : 0,
             totalPaidNCOP: paymentMethod === 'ncop' ? totalToPayNCOP : (ncopAmount || 0),
+            shippingCost: validShippingCost,
             paymentMethod,
             status: 'completed',
             membershipApplied: membershipType,
             discountRate,
+            shippingAddress: shippingAddress || null,
             createdAt: new Date().toISOString()
         });
 

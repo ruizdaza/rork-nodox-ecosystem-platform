@@ -16,6 +16,10 @@ import { getMyProductsProcedure } from "@/backend/trpc/routes/inventory/get-my-p
 import { getAllyOrdersProcedure } from "@/backend/trpc/routes/inventory/orders/get-ally-orders";
 import { updateOrderStatusProcedure } from "@/backend/trpc/routes/inventory/orders/update-status";
 
+import { getAddressesProcedure } from "@/backend/trpc/routes/user/addresses/get-addresses/route";
+import { addAddressProcedure } from "@/backend/trpc/routes/user/addresses/add-address/route";
+import { deleteAddressProcedure } from "@/backend/trpc/routes/user/addresses/delete-address/route";
+
 import {
   getInventoryItemsProcedure,
   getInventoryItemProcedure,
@@ -150,6 +154,11 @@ export const appRouter = createTRPCRouter({
     getConversations: getConversationsProcedure,
     getMessages: getMessagesProcedure,
     getUsers: getUsersProcedure,
+  }),
+  user: createTRPCRouter({
+    getAddresses: getAddressesProcedure,
+    addAddress: addAddressProcedure,
+    deleteAddress: deleteAddressProcedure,
   }),
   marketplace: createTRPCRouter({
     processOrder: processOrderProcedure,

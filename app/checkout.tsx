@@ -5,66 +5,55 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { X, CreditCard, MapPin, Check } from 'lucide-react-native';
+import { X, CreditCard, MapPin, Check, ChevronRight } from 'lucide-react-native';
 import { useMarketplace } from '@/hooks/use-marketplace';
 import { useNodoX } from '@/hooks/use-nodox-store';
+import { trpc } from '@/lib/trpc';
+import { NcopDisplay } from '@/components/NcopDisplay';
 
 type PaymentMethod = 'ncop' | 'fiat' | 'mixed';
 
 export default function CheckoutScreen() {
-  const { cart, clearCart } = useMarketplace();
+  const { cart, clearCart, processPayment, processingPayment } = useMarketplace();
   const { ncopBalance } = useNodoX();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('ncop');
-  const [address, setAddress] = useState<string>('');
-  const [city, setCity] = useState<string>('');
-  const [postalCode, setPostalCode] = useState<string>('');
-  const [phone, setPhone] = useState<string>('');
+
+  // Address State
+  const { data: addresses, isLoading: loadingAddresses } = trpc.user.getAddresses.useQuery({});
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+
+  const selectedAddress = addresses?.find(a => a.id === selectedAddressId) || addresses?.find(a => a.isDefault);
 
   const canPayWithNcop = ncopBalance >= cart.ncopTotal;
 
-  const handlePlaceOrder = () => {
-    if (!address || !city || !postalCode || !phone) {
-      Alert.alert('Error', 'Por favor completa todos los campos de envío');
+  const handlePlaceOrder = async () => {
+    if (!selectedAddress) {
+      Alert.alert('Error', 'Por favor selecciona una dirección de envío');
       return;
     }
 
     if (paymentMethod === 'ncop' && !canPayWithNcop) {
-      Alert.alert(
-        'Saldo insuficiente',
-        'No tienes suficientes NCOP para completar esta compra'
-      );
+      Alert.alert('Saldo insuficiente', 'No tienes suficientes NCOP');
       return;
     }
 
-    Alert.alert(
-      'Confirmar pedido',
-      `¿Deseas confirmar tu pedido por $${cart.total.toLocaleString()} COP?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: () => {
-            console.log('Order placed with payment method:', paymentMethod);
-            clearCart();
-            Alert.alert(
-              'Pedido confirmado',
-              'Tu pedido ha sido procesado exitosamente',
-              [
-                {
-                  text: 'Ver pedidos',
-                  onPress: () => router.replace('/(tabs)'),
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
+    // Process Payment passing selected address
+    const result = await processPayment(paymentMethod, selectedAddress);
+
+    if (result.success) {
+        Alert.alert(
+            'Pedido confirmado',
+            'Tu pedido ha sido procesado exitosamente',
+            [{ text: 'Ver pedidos', onPress: () => router.replace('/(tabs)') }]
+        );
+    } else {
+        Alert.alert('Error', result.error || 'No se pudo procesar el pedido');
+    }
   };
 
   return (
@@ -77,52 +66,41 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+
+        {/* Address Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dirección de envío</Text>
-          <View style={styles.form}>
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Dirección</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Calle y número"
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
-            <View style={styles.formRow}>
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.label}>Ciudad</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ciudad"
-                  value={city}
-                  onChangeText={setCity}
-                />
-              </View>
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.label}>Código postal</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="00000"
-                  value={postalCode}
-                  onChangeText={setPostalCode}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Teléfono</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="+57 300 000 0000"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Dirección de envío</Text>
+            <TouchableOpacity onPress={() => router.push('/addresses')}>
+                <Text style={styles.linkText}>Gestionar</Text>
+            </TouchableOpacity>
           </View>
+
+          {loadingAddresses ? (
+              <ActivityIndicator color="#2563eb" />
+          ) : addresses && addresses.length > 0 ? (
+              selectedAddress ? (
+                <TouchableOpacity style={styles.addressCard} onPress={() => router.push('/addresses')}>
+                    <MapPin color="#2563eb" size={24} />
+                    <View style={styles.addressInfo}>
+                        <Text style={styles.addressName}>{selectedAddress.name}</Text>
+                        <Text style={styles.addressText}>{selectedAddress.street}, {selectedAddress.city}</Text>
+                    </View>
+                    <ChevronRight color="#94a3b8" size={20} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.addAddressButton} onPress={() => router.push('/addresses')}>
+                    <Text style={styles.addAddressText}>Seleccionar dirección</Text>
+                </TouchableOpacity>
+              )
+          ) : (
+              <TouchableOpacity style={styles.addAddressButton} onPress={() => router.push('/addresses/new')}>
+                  <Text style={styles.addAddressText}>+ Agregar nueva dirección</Text>
+              </TouchableOpacity>
+          )}
         </View>
 
+        {/* Payment Method */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Método de pago</Text>
           <TouchableOpacity
@@ -140,95 +118,43 @@ export default function CheckoutScreen() {
               </View>
               <View style={styles.paymentInfo}>
                 <Text style={styles.paymentTitle}>NCOP</Text>
-                <Text style={styles.paymentSubtitle}>
-                  Saldo: {ncopBalance} NCOP
-                </Text>
-                {!canPayWithNcop && (
-                  <Text style={styles.insufficientText}>Saldo insuficiente</Text>
-                )}
+                <Text style={styles.paymentSubtitle}>Saldo: {ncopBalance.toLocaleString()} NCOP</Text>
+                {!canPayWithNcop && <Text style={styles.insufficientText}>Saldo insuficiente</Text>}
               </View>
             </View>
-            {paymentMethod === 'ncop' && (
-              <Check color="#2563eb" size={20} />
-            )}
+            {paymentMethod === 'ncop' && <Check color="#2563eb" size={20} />}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.paymentOption,
-              paymentMethod === 'fiat' && styles.selectedPayment,
-            ]}
+            style={[styles.paymentOption, paymentMethod === 'fiat' && styles.selectedPayment]}
             onPress={() => setPaymentMethod('fiat')}
           >
             <View style={styles.paymentOptionContent}>
-              <View style={styles.paymentIconContainer}>
-                <CreditCard color="#2563eb" size={20} />
-              </View>
+              <View style={styles.paymentIconContainer}><CreditCard color="#2563eb" size={20} /></View>
               <View style={styles.paymentInfo}>
-                <Text style={styles.paymentTitle}>Tarjeta de crédito/débito</Text>
-                <Text style={styles.paymentSubtitle}>Pago con tarjeta</Text>
+                <Text style={styles.paymentTitle}>Tarjeta / PSE</Text>
+                <Text style={styles.paymentSubtitle}>Pago en Pesos (COP)</Text>
               </View>
             </View>
-            {paymentMethod === 'fiat' && (
-              <Check color="#2563eb" size={20} />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.paymentOption,
-              paymentMethod === 'mixed' && styles.selectedPayment,
-            ]}
-            onPress={() => setPaymentMethod('mixed')}
-          >
-            <View style={styles.paymentOptionContent}>
-              <View style={styles.paymentIconContainer}>
-                <Text style={styles.paymentIcon}>💳</Text>
-              </View>
-              <View style={styles.paymentInfo}>
-                <Text style={styles.paymentTitle}>Pago mixto</Text>
-                <Text style={styles.paymentSubtitle}>
-                  Combina NCOP y tarjeta
-                </Text>
-              </View>
-            </View>
-            {paymentMethod === 'mixed' && (
-              <Check color="#2563eb" size={20} />
-            )}
+            {paymentMethod === 'fiat' && <Check color="#2563eb" size={20} />}
           </TouchableOpacity>
         </View>
 
+        {/* Summary */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Resumen del pedido</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Productos ({cart.totalItems})</Text>
-              <Text style={styles.summaryValue}>
-                ${cart.subtotal.toLocaleString()}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Envío</Text>
-              <Text style={styles.summaryValue}>
-                {cart.shipping === 0 ? 'Gratis' : `$${cart.shipping.toLocaleString()}`}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>IVA</Text>
-              <Text style={styles.summaryValue}>
-                ${cart.tax.toLocaleString()}
-              </Text>
+              <Text style={styles.summaryValue}>${cart.subtotal.toLocaleString()}</Text>
             </View>
             <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <View>
-                <Text style={styles.totalValue}>
-                  ${cart.total.toLocaleString()}
-                </Text>
-                {paymentMethod === 'ncop' && (
-                  <Text style={styles.totalNcop}>
-                    {cart.ncopTotal} NCOP
-                  </Text>
+              <Text style={styles.totalLabel}>Total a Pagar</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                {paymentMethod === 'ncop' ? (
+                    <NcopDisplay value={cart.ncopTotal} showCop={true} />
+                ) : (
+                    <Text style={styles.totalValue}>${cart.total.toLocaleString()} COP</Text>
                 )}
               </View>
             </View>
@@ -238,10 +164,15 @@ export default function CheckoutScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.placeOrderButton}
+          style={[styles.placeOrderButton, processingPayment && styles.disabledButton]}
           onPress={handlePlaceOrder}
+          disabled={processingPayment}
         >
-          <Text style={styles.placeOrderText}>Realizar pedido</Text>
+          {processingPayment ? (
+              <ActivityIndicator color="white" />
+          ) : (
+              <Text style={styles.placeOrderText}>Confirmar Pedido</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -276,49 +207,62 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
-    paddingHorizontal: 20,
-    marginBottom: 16,
   },
-  form: {
-    paddingHorizontal: 20,
+  linkText: {
+    color: '#2563eb',
+    fontWeight: '600',
   },
-  formGroup: {
-    marginBottom: 16,
-  },
-  formRow: {
+  addressCard: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  formGroupHalf: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#475569',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+  },
+  addressInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  addressName: {
+    fontWeight: '600',
     color: '#1e293b',
+  },
+  addressText: {
+    color: '#64748b',
+    fontSize: 13,
+  },
+  addAddressButton: {
+    padding: 16,
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderStyle: 'dashed',
+  },
+  addAddressText: {
+    color: '#2563eb',
+    fontWeight: '600',
   },
   paymentOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#ffffff',
-    marginHorizontal: 20,
     marginBottom: 12,
     padding: 16,
     borderRadius: 12,
@@ -369,7 +313,6 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: '#ffffff',
-    marginHorizontal: 20,
     padding: 20,
     borderRadius: 12,
     shadowColor: '#000',
@@ -377,6 +320,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    marginBottom: 40,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -410,13 +354,6 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     textAlign: 'right',
   },
-  totalNcop: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2563eb',
-    textAlign: 'right',
-    marginTop: 4,
-  },
   footer: {
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
@@ -429,6 +366,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#94a3b8',
   },
   placeOrderText: {
     fontSize: 16,

@@ -101,13 +101,8 @@ export function useMarketplace() {
           fetchedProducts.push({ id: doc.id, ...doc.data() } as Product);
         });
 
-        // If no products in DB yet, you might want to seed them or keep empty
         if (fetchedProducts.length > 0) {
             setProducts(fetchedProducts);
-        } else {
-             // Fallback to mock for demo if DB empty
-             // setProducts(mockProducts);
-             // For now, let's just initialize empty or comment out fallback
         }
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -260,7 +255,11 @@ export function useMarketplace() {
     updateCart([]);
   };
 
-  const processPayment = async (paymentMethod: 'ncop' | 'fiat' | 'mixed', ncopAmount?: number): Promise<{ success: boolean; error?: string }> => {
+  const processPayment = async (
+    paymentMethod: 'ncop' | 'fiat' | 'mixed',
+    shippingAddress?: any,
+    ncopAmount?: number
+  ): Promise<{ success: boolean; error?: string }> => {
     setProcessingPayment(true);
     
     try {
@@ -280,6 +279,7 @@ export function useMarketplace() {
         })),
         total: cart.total,
         ncopTotal: cart.ncopTotal,
+        shippingAddress // Pass shipping address to backend
       };
 
       await processOrderMutation.mutateAsync(orderPayload);
@@ -288,7 +288,7 @@ export function useMarketplace() {
       console.log(`Payment processed successfully via tRPC`);
       return { success: true };
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Order processing error:", error);
       return { success: false, error: error.message || 'Error processing payment' };
     } finally {
@@ -339,9 +339,7 @@ export function useMarketplace() {
       mixed: ncopBalance > 0 || copBalance > 0
   });
 
-   // Placeholder for missing functions from interface if needed, or remove them
    const processPhysicalStorePayment = async (storeId: string, amount: number, paymentMethod: 'ncop' | 'fiat') => {
-       // Similar transaction logic needed here
        return { success: false, error: "Not implemented yet" };
    };
 
