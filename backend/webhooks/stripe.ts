@@ -21,89 +21,80 @@ export const processRechargeConfirmation = async (paymentIntentId: string, userI
 
     const targetUserId = paymentIntent.metadata.userId;
 
-    // 2. Process Recharge Transaction with Idempotency via Deterministic ID
+    // 2. Check if transaction already processed (Idempotency)
+    const transactionsRef = collection(db, "transactions");
+    const q = query(transactionsRef, where("metadata.stripePaymentIntentId", "==", paymentIntentId));
+    const existingDocs = await getDocs(q);
+
+    if (!existingDocs.empty) {
+        console.log("Transaction already processed");
+        return { status: "already_processed" };
+    }
+
+    // 3. Process Recharge Transaction
     const amount = paymentIntent.amount / 100;
     const bonusNcop = Math.floor((amount * RECHARGE_BONUS_PERCENTAGE) / 100);
 
-    try {
-        await runTransaction(db, async (transaction) => {
-            // Use paymentIntentId as the Document ID to ensure uniqueness/idempotency
-            const txRef = doc(db, "transactions", paymentIntentId);
-            const txDoc = await transaction.get(txRef);
+    await runTransaction(db, async (transaction) => {
+        const walletRef = doc(db, "wallets", targetUserId);
+        const walletDoc = await transaction.get(walletRef);
 
-            if (txDoc.exists()) {
-                // If it exists, we assume it was already processed successfully.
-                // We return 'already_processed' so callers know no action was taken.
-                return;
-            }
+        let currentCop = 0;
+        let currentNcop = 0;
 
-            const walletRef = doc(db, "wallets", targetUserId);
-            const walletDoc = await transaction.get(walletRef);
+        if (walletDoc.exists()) {
+            const data = walletDoc.data();
+            currentCop = data.copBalance || 0;
+            currentNcop = data.ncopBalance || 0;
+        }
 
-            let currentCop = 0;
-            let currentNcop = 0;
+        const newCop = currentCop + amount;
+        const newNcop = currentNcop + bonusNcop;
 
-            if (walletDoc.exists()) {
-                const data = walletDoc.data();
-                currentCop = data.copBalance || 0;
-                currentNcop = data.ncopBalance || 0;
-            }
+        transaction.set(walletRef, {
+            copBalance: newCop,
+            ncopBalance: newNcop,
+            lastUpdated: new Date().toISOString(),
+            userId: targetUserId
+        }, { merge: true });
 
-            const newCop = currentCop + amount;
-            const newNcop = currentNcop + bonusNcop;
+        const txRef = doc(collection(db, "transactions"));
+        transaction.set(txRef, {
+            userId: targetUserId,
+            type: 'recharge',
+            currency: 'COP',
+            amount,
+            balanceAfter: newCop,
+            description: 'Recarga con Stripe (Webhook)',
+            category: 'top_up',
+            status: 'completed',
+            metadata: {
+                stripePaymentIntentId: paymentIntentId,
+                bonusNcop
+            },
+            createdAt: new Date().toISOString()
+        });
 
-            transaction.set(walletRef, {
-                copBalance: newCop,
-                ncopBalance: newNcop,
-                lastUpdated: new Date().toISOString(),
-                userId: targetUserId
-            }, { merge: true });
-
-            // Create main transaction record with deterministic ID
-            transaction.set(txRef, {
+        if (bonusNcop > 0) {
+            const bonusRef = doc(collection(db, "transactions"));
+            transaction.set(bonusRef, {
                 userId: targetUserId,
-                type: 'recharge',
-                currency: 'COP',
-                amount,
-                balanceAfter: newCop,
-                description: 'Recarga con Stripe',
-                category: 'top_up',
+                type: 'bonus',
+                currency: 'NCOP',
+                amount: bonusNcop,
+                balanceAfter: newNcop,
+                description: 'Bonus por recarga',
+                category: 'reward',
                 status: 'completed',
                 metadata: {
-                    stripePaymentIntentId: paymentIntentId,
-                    bonusNcop
+                    relatedTransactionId: txRef.id
                 },
                 createdAt: new Date().toISOString()
             });
+        }
+    });
 
-            if (bonusNcop > 0) {
-                // For bonus, we can also use a deterministic ID linked to payment
-                const bonusRef = doc(db, "transactions", `${paymentIntentId}_bonus`);
-                transaction.set(bonusRef, {
-                    userId: targetUserId,
-                    type: 'bonus',
-                    currency: 'NCOP',
-                    amount: bonusNcop,
-                    balanceAfter: newNcop,
-                    description: 'Bonus por recarga',
-                    category: 'reward',
-                    status: 'completed',
-                    metadata: {
-                        relatedTransactionId: paymentIntentId
-                    },
-                    createdAt: new Date().toISOString()
-                });
-            }
-        });
-
-        // If we reach here without error, it was either processed now or skipped idempotently
-        // To distinguish, we could return different statuses, but 'success' covers "state is correct"
-        return { status: "success" };
-
-    } catch (error) {
-        console.error("Transaction failed:", error);
-        throw error;
-    }
+    return { status: "success" };
 };
 
 // Webhook Handler Entry Point (Simulated for Hono/Express)

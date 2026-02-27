@@ -18,7 +18,7 @@ export const createContext = async (opts: FetchCreateContextFnOptions) => {
     try {
       const token = authHeader.replace('Bearer ', '');
 
-      // Verify token with Admin SDK
+      // Strict Production Auth: Only verify with Admin SDK
       try {
           const decodedToken = await adminAuth.verifyIdToken(token);
           user = {
@@ -28,18 +28,21 @@ export const createContext = async (opts: FetchCreateContextFnOptions) => {
           };
       } catch (verifyError) {
           console.error('Token verification failed:', verifyError);
-          // In dev without credentials, we might fail here.
-          // If strictly needed for local dev without admin keys:
+          // Fallback only for LOCAL DEVELOPMENT without Admin Keys
+          // This block ensures we can develop without keys but it WON'T work in production
+          // because NODE_ENV should be 'production'
           if (process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_PRIVATE_KEY) {
                console.warn("⚠️ Using insecure token decoding for DEV only due to missing Admin Keys");
                const base64Url = token.split('.')[1];
-               const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-               const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-                  return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-               }).join(''));
-               const decoded = JSON.parse(jsonPayload);
-               if(decoded.sub) {
-                   user = { id: decoded.sub, email: decoded.email, type: 'user' };
+               if (base64Url) {
+                   const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                   const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                   }).join(''));
+                   const decoded = JSON.parse(jsonPayload);
+                   if(decoded.sub) {
+                       user = { id: decoded.sub, email: decoded.email, type: 'user' };
+                   }
                }
           }
       }
