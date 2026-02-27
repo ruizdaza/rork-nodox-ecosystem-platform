@@ -13,20 +13,13 @@ export const confirmRechargeProcedure = protectedProcedure
     console.log(`[Wallet] Confirming recharge for user ${user.id} with intent ${paymentIntentId}`);
 
     try {
-      // Reuse logic shared with webhook
-      // If it's already processed by webhook, this returns "already_processed"
       const result = await processRechargeConfirmation(paymentIntentId, user.id);
-
-      // In a real app we'd fetch the new balance here to return it,
-      // but for now we trust the client will refresh or we return a placeholder
-      // if result doesn't have it (webhook function returns simplified status)
 
       return {
           status: result.status,
-          // newBalance would ideally be fetched here if needed by UI immediate update
       };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Wallet] Confirm Recharge Failed:", error);
       throw new Error(error.message || "Failed to confirm recharge");
     }

@@ -2,7 +2,7 @@ import { protectedProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
 import { RechargeResponse, RECHARGE_BONUS_PERCENTAGE, MIN_TRANSACTION_AMOUNT, MAX_DAILY_RECHARGE_LIMIT } from "@/types/wallet";
 import { db } from "@/lib/firebase-server";
-import { doc, runTransaction, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const rechargeProcedure = protectedProcedure
   .input(
@@ -15,7 +15,7 @@ export const rechargeProcedure = protectedProcedure
   )
   .mutation(async ({ input, ctx }): Promise<RechargeResponse> => {
     const userId = ctx.user.id;
-    const { amount, paymentMethod, returnUrl } = input;
+    const { amount, paymentMethod } = input;
 
     if (amount > MAX_DAILY_RECHARGE_LIMIT) {
       throw new Error(`Límite diario de recarga excedido. Máximo: ${MAX_DAILY_RECHARGE_LIMIT.toLocaleString()} COP`);
@@ -23,39 +23,36 @@ export const rechargeProcedure = protectedProcedure
 
     console.log(`[Wallet] Processing recharge for user: ${userId}`, { amount, paymentMethod });
 
-    // Use Firestore transaction for atomicity
     try {
       const bonusNcop = Math.floor((amount * RECHARGE_BONUS_PERCENTAGE) / 100);
       const transactionId = `TXN-RCH-${Date.now()}`;
 
-      await runTransaction(db, async (transaction) => {
-        const walletRef = doc(db, "wallets", userId);
-        const walletDoc = await transaction.get(walletRef);
+      await db.runTransaction(async (t) => {
+        const walletRef = db.collection("wallets").doc(userId);
+        const walletDoc = await t.get(walletRef);
 
         let currentCop = 0;
         let currentNcop = 0;
 
-        if (walletDoc.exists()) {
+        if (walletDoc.exists) {
           const data = walletDoc.data();
-          currentCop = data.copBalance || 0;
-          currentNcop = data.ncopBalance || 0;
+          currentCop = data?.copBalance || 0;
+          currentNcop = data?.ncopBalance || 0;
         }
 
         const newCop = currentCop + amount;
         const newNcop = currentNcop + bonusNcop;
 
-        // Update Wallet
-        transaction.set(walletRef, {
+        t.set(walletRef, {
           copBalance: newCop,
           ncopBalance: newNcop,
           lastUpdated: new Date().toISOString(),
-          userId: userId // Ensure userId is set
+          userId: userId
         }, { merge: true });
 
-        // Create Transaction Record
-        const transactionRef = doc(collection(db, "transactions"));
-        transaction.set(transactionRef, {
-          id: transactionId, // Using client generated ID for consistency with response, ideally use doc.id
+        const transactionRef = db.collection("transactions").doc(transactionId);
+        t.set(transactionRef, {
+          id: transactionId,
           userId,
           type: 'recharge',
           currency: 'COP',
@@ -72,11 +69,10 @@ export const rechargeProcedure = protectedProcedure
           completedAt: new Date().toISOString()
         });
 
-        // If bonus given, create bonus transaction record
         if (bonusNcop > 0) {
-           const bonusRef = doc(collection(db, "transactions"));
-           transaction.set(bonusRef, {
-            id: `TXN-BONUS-${Date.now()}`,
+           const bonusRef = db.collection("transactions").doc(`TXN-BONUS-${Date.now()}`);
+           t.set(bonusRef, {
+            id: bonusRef.id,
             userId,
             type: 'bonus',
             currency: 'NCOP',

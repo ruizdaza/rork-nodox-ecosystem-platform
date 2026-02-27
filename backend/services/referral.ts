@@ -1,26 +1,24 @@
 import { db } from "@/lib/firebase-server";
-import { doc, runTransaction, collection, getDoc } from "firebase/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 
-const REFERRAL_REWARD_AMOUNT = 500; // 500 NCOP reward for the referrer
+const REFERRAL_REWARD_AMOUNT = 500;
 
 export const processReferralReward = async (userId: string) => {
   console.log(`[Referral] Checking rewards for user: ${userId}`);
 
   try {
-    await runTransaction(db, async (transaction) => {
-      // 1. Get User Data
-      const userRef = doc(db, "users", userId);
-      const userDoc = await transaction.get(userRef);
+    await db.runTransaction(async (t) => {
+      const userRef = db.collection("users").doc(userId);
+      const userDoc = await t.get(userRef);
 
-      if (!userDoc.exists()) {
+      if (!userDoc.exists) {
         throw new Error("User not found");
       }
 
       const userData = userDoc.data();
-      const referrerId = userData.referredBy;
-      const alreadyPaid = userData.referralCommissionPaid;
+      const referrerId = userData?.referredBy;
+      const alreadyPaid = userData?.referralCommissionPaid;
 
-      // 2. Validate Reward Conditions
       if (!referrerId) {
         console.log(`[Referral] User ${userId} has no referrer.`);
         return;
@@ -31,14 +29,11 @@ export const processReferralReward = async (userId: string) => {
         return;
       }
 
-      // 3. Get Referrer Wallet
-      const referrerWalletRef = doc(db, "wallets", referrerId);
-      const referrerWalletDoc = await transaction.get(referrerWalletRef);
+      const referrerWalletRef = db.collection("wallets").doc(referrerId);
+      const referrerWalletDoc = await t.get(referrerWalletRef);
 
-      if (!referrerWalletDoc.exists()) {
-        console.warn(`[Referral] Referrer wallet ${referrerId} not found. Creating...`);
-        // Ideally handled by a user creation trigger, but safe to init here if missing
-        transaction.set(referrerWalletRef, {
+      if (!referrerWalletDoc.exists) {
+        t.set(referrerWalletRef, {
             ncopBalance: 0,
             copBalance: 0,
             userId: referrerId,
@@ -46,36 +41,34 @@ export const processReferralReward = async (userId: string) => {
         });
       }
 
-      const referrerData = referrerWalletDoc.exists() ? referrerWalletDoc.data() : { ncopBalance: 0 };
-      const currentNcop = referrerData.ncopBalance || 0;
+      const referrerData = referrerWalletDoc.exists ? referrerWalletDoc.data() : { ncopBalance: 0 };
+      const currentNcop = referrerData?.ncopBalance || 0;
       const newNcop = currentNcop + REFERRAL_REWARD_AMOUNT;
 
-      // 4. Update Referrer Wallet
-      transaction.update(referrerWalletRef, {
+      t.update(referrerWalletRef, {
         ncopBalance: newNcop,
         lastUpdated: new Date().toISOString()
       });
 
-      // 5. Create Transaction Record for Referrer
-      const txRef = doc(collection(db, "transactions"));
-      transaction.set(txRef, {
+      const txRef = db.collection("transactions").doc();
+      t.set(txRef, {
+        id: txRef.id,
         userId: referrerId,
         type: 'earn',
         currency: 'NCOP',
         amount: REFERRAL_REWARD_AMOUNT,
         balanceAfter: newNcop,
-        description: `Recompensa por referido: ${userData.name}`,
+        description: `Recompensa por referido: ${userData?.name}`,
         category: 'referral',
         status: 'completed',
         metadata: {
           referredUserId: userId,
-          referralCode: userData.referralCode // Or own code
+          referralCode: userData?.referralCode
         },
         createdAt: new Date().toISOString()
       });
 
-      // 6. Mark User as Paid
-      transaction.update(userRef, {
+      t.update(userRef, {
         referralCommissionPaid: true,
         referralPaidAt: new Date().toISOString()
       });
@@ -86,7 +79,6 @@ export const processReferralReward = async (userId: string) => {
 
   } catch (error) {
     console.error("[Referral] Process Reward Failed:", error);
-    // Don't throw, just log, so we don't block the main recharge flow
     return { success: false, error };
   }
 };

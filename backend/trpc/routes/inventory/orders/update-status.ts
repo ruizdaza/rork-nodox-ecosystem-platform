@@ -1,7 +1,6 @@
 import { protectedProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
 import { db } from "@/lib/firebase-server";
-import { doc, updateDoc } from "firebase/firestore";
 
 export const updateOrderStatusProcedure = protectedProcedure
   .input(z.object({
@@ -15,10 +14,7 @@ export const updateOrderStatusProcedure = protectedProcedure
     console.log(`[Inventory] Updating order ${orderId} to ${status} by ${user.id}`);
 
     try {
-      const orderRef = doc(db, "orders", orderId);
-      // In a real app, verify ownership/permission (is seller of items in order?)
-
-      await updateDoc(orderRef, {
+      await db.collection("orders").doc(orderId).update({
         status,
         updatedAt: new Date().toISOString(),
       });

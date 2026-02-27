@@ -1,7 +1,15 @@
 import { protectedProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
 import { db } from "@/lib/firebase-server";
-import { doc, runTransaction, collection } from "firebase/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+
+const MEMBERSHIP_DISCOUNTS = {
+  free: 0.30,
+  plus: 0.40,
+  premium: 0.45,
+};
+
+const PLATFORM_FEE_PERCENTAGE = 0.10;
 
 export const processOrderProcedure = protectedProcedure
   .input(
@@ -12,7 +20,6 @@ export const processOrderProcedure = protectedProcedure
         z.object({
           productId: z.string(),
           quantity: z.number().min(1),
-          // Removed price from input as it should be fetched from DB
         })
       ),
     })
@@ -21,140 +28,154 @@ export const processOrderProcedure = protectedProcedure
     const { user } = ctx;
     const { paymentMethod, ncopAmount, items } = input;
 
-    console.log(`[Marketplace] Processing order for user: ${user.id}`, { paymentMethod });
+    console.log(`[Marketplace] Processing order for user: ${user.id} (${user.email})`);
 
     try {
-      const result = await runTransaction(db, async (transaction) => {
-        // Calculate totals securely
-        let calculatedTotal = 0;
-        let calculatedNcopTotal = 0;
-        const verifiedItems = [];
+      const result = await db.runTransaction(async (t) => {
+        const userRef = db.collection("users").doc(user.id);
+        const walletRef = db.collection("wallets").doc(user.id);
 
-        // Inventory Check and Price Verification
-        for (const item of items) {
-           const productRef = doc(db, "products", item.productId);
-           const productDoc = await transaction.get(productRef);
-           if (!productDoc.exists()) throw new Error(`Product ${item.productId} not found`);
+        const userDoc = await t.get(userRef);
+        const walletDoc = await t.get(walletRef);
 
-           const productData = productDoc.data();
+        if (!userDoc.exists) throw new Error("User not found");
+        if (!walletDoc.exists) throw new Error("Wallet not found");
 
-           // Verify Stock
-           if (productData.stock < item.quantity) {
-               throw new Error(`Insufficient stock for product ${item.productId}`);
+        const userData = userDoc.data();
+        const walletData = walletDoc.data();
+
+        const productRefs = items.map(i => db.collection("products").doc(i.productId));
+        const productDocs = await t.getAll(...productRefs);
+
+        const membershipType = (userData?.membershipType || 'free') as keyof typeof MEMBERSHIP_DISCOUNTS;
+        const discountRate = MEMBERSHIP_DISCOUNTS[membershipType] || MEMBERSHIP_DISCOUNTS.free;
+
+        let totalToPayCOP = 0;
+        let totalToPayNCOP = 0;
+        const verifiedItems: any[] = [];
+        const sellerCredits = new Map<string, { ncop: number, cop: number }>();
+        const productUpdates: any[] = [];
+
+        items.forEach((item, index) => {
+           const productDoc = productDocs[index];
+           if (!productDoc.exists) throw new Error(`Product ${item.productId} not found`);
+
+           const product = productDoc.data();
+           const productRef = productDoc.ref;
+
+           if (product?.stock < item.quantity) {
+               throw new Error(`Insufficient stock for ${product?.name}`);
            }
 
-           // Calculate Prices
-           const itemPrice = productData.price || 0;
-           const itemNcopPrice = productData.ncopPrice || 0;
+           const basePriceCOP = product?.price || 0;
+           const basePriceNCOP = product?.ncopPrice || (basePriceCOP * 100);
 
-           calculatedTotal += itemPrice * item.quantity;
-           calculatedNcopTotal += itemNcopPrice * item.quantity;
+           const pricePaidCOP = basePriceCOP * (1 - discountRate);
+           const pricePaidNCOP = basePriceNCOP * (1 - discountRate);
 
-           // Deduct Stock
-           transaction.update(productRef, { stock: productData.stock - item.quantity });
+           const allyNetShare = 0.50;
+           const amountForAliadoCOP = basePriceCOP * allyNetShare;
+           const amountForAliadoNCOP = basePriceNCOP * allyNetShare;
+
+           const platformFeeCOP = amountForAliadoCOP * PLATFORM_FEE_PERCENTAGE;
+           const platformFeeNCOP = amountForAliadoNCOP * PLATFORM_FEE_PERCENTAGE;
+
+           const finalCreditAliadoCOP = amountForAliadoCOP - platformFeeCOP;
+           const finalCreditAliadoNCOP = amountForAliadoNCOP - platformFeeNCOP;
+
+           totalToPayCOP += pricePaidCOP * item.quantity;
+           totalToPayNCOP += pricePaidNCOP * item.quantity;
+
+           const sellerId = product?.sellerId;
+           if (!sellerCredits.has(sellerId)) {
+               sellerCredits.set(sellerId, { ncop: 0, cop: 0 });
+           }
+           const currentCredit = sellerCredits.get(sellerId)!;
+           sellerCredits.set(sellerId, {
+               ncop: currentCredit.ncop + (finalCreditAliadoNCOP * item.quantity),
+               cop: currentCredit.cop + (finalCreditAliadoCOP * item.quantity)
+           });
+
+           productUpdates.push({
+               ref: productRef,
+               newStock: (product?.stock || 0) - item.quantity
+           });
 
            verifiedItems.push({
              ...item,
-             productName: productData.name,
-             price: itemPrice,
-             ncopPrice: itemNcopPrice
+             productName: product?.name,
+             basePrice: basePriceCOP,
+             discountRate: discountRate,
+             pricePaid: pricePaidCOP,
+             ncopPricePaid: pricePaidNCOP,
+             sellerId
            });
+        });
+
+        let buyerNcop = walletData?.ncopBalance || 0;
+        let buyerCop = walletData?.copBalance || 0;
+
+        if (paymentMethod === 'ncop') {
+            if (buyerNcop < totalToPayNCOP) throw new Error("Saldo NCOP insuficiente");
+            buyerNcop -= totalToPayNCOP;
+        } else if (paymentMethod === 'fiat') {
+            if (buyerCop < totalToPayCOP) throw new Error("Saldo COP insuficiente");
+            buyerCop -= totalToPayCOP;
+        } else {
+            const ncopPart = ncopAmount || 0;
+            const copPart = totalToPayCOP - (ncopPart * 100);
+            if (buyerNcop < ncopPart) throw new Error("Saldo NCOP insuficiente");
+            if (buyerCop < copPart) throw new Error("Saldo COP insuficiente");
+            buyerNcop -= ncopPart;
+            buyerCop -= copPart;
         }
 
-        // Add Shipping and Tax (Simplified logic, should match frontend or be passed as parameters if variable but verified)
-        // For security, we should ideally calculate this server-side too.
-        // Assuming standard shipping/tax rules for now.
-        const tax = calculatedTotal * 0.19; // 19% IVA
-        // Shipping logic (simplified match to frontend)
-        const hasPhysicalItems = verifiedItems.some(i => i.price > 0); // Mock check
-        let shipping = 0;
-        if (hasPhysicalItems && calculatedTotal <= 100) { // Free shipping over 100
-             // Ideally fetch shipping rules. For now, assuming 0 or fixed if not passed.
-             // If we want to match frontend exactly, we need shared logic.
-             // Let's assume calculatedTotal includes base price, and we add tax.
+        for (const update of productUpdates) {
+            t.update(update.ref, { stock: update.newStock });
         }
 
-        const finalTotal = calculatedTotal + tax; // + shipping;
-        const finalNcopTotal = calculatedNcopTotal;
-
-        // Wallet Logic
-        const walletRef = doc(db, "wallets", user.id);
-        const walletDoc = await transaction.get(walletRef);
-
-        if (!walletDoc.exists()) {
-          throw new Error("Wallet not found");
-        }
-
-        const walletData = walletDoc.data();
-        const currentNcop = walletData.ncopBalance || 0;
-        const currentCop = walletData.copBalance || 0;
-
-        let newNcop = currentNcop;
-        let newCop = currentCop;
-
-        switch (paymentMethod) {
-          case 'ncop':
-            if (currentNcop < finalNcopTotal) throw new Error("Saldo NCOP insuficiente");
-            newNcop -= finalNcopTotal;
-            break;
-          case 'fiat':
-            if (currentCop < finalTotal) throw new Error("Saldo COP insuficiente");
-            newCop -= finalTotal;
-            break;
-          case 'mixed':
-             // ncopAmount is the amount user WANTS to pay in NCOP.
-             // We verify they have it, and the rest is COP.
-             // BUT, we should probably enforce a split logic or trust the input split if valid.
-             // Here, let's use the input `ncopAmount` as the user's choice for NCOP part,
-             // provided it doesn't exceed total cost in NCOP terms?
-             // Actually, mixed usually means Pay X NCOP + Y COP.
-             // If items have dual prices, it's tricky.
-             // Simplified: Convert NCOP amount to COP equivalent and deduct from total COP needed.
-             // Assuming 1 NCOP = 100 COP rate fixed.
-
-             const ncopPart = ncopAmount || 0;
-             if (currentNcop < ncopPart) throw new Error("Saldo NCOP insuficiente");
-
-             const conversionRate = 100; // Fixed rate for now
-             const copValue = ncopPart * conversionRate;
-             const remainingCop = finalTotal - copValue;
-
-             if (remainingCop < 0) throw new Error("Monto NCOP excede el total");
-             if (currentCop < remainingCop) throw new Error("Saldo COP insuficiente");
-
-             newNcop -= ncopPart;
-             newCop -= remainingCop;
-            break;
-        }
-
-        // Update Wallet
-        transaction.update(walletRef, {
-            ncopBalance: newNcop,
-            copBalance: newCop,
+        t.update(walletRef, {
+            ncopBalance: buyerNcop,
+            copBalance: buyerCop,
             lastUpdated: new Date().toISOString()
         });
 
-        // Create Order
-        const orderRef = doc(collection(db, "orders"));
-        const orderData = {
+        for (const [sellerId, credit] of sellerCredits) {
+            const sellerWalletRef = db.collection("wallets").doc(sellerId);
+            const creditUpdate: any = {
+                lastUpdated: new Date().toISOString()
+            };
+
+            if (paymentMethod === 'ncop') {
+                creditUpdate.ncopBalance = FieldValue.increment(credit.ncop);
+            } else {
+                creditUpdate.copBalance = FieldValue.increment(credit.cop);
+            }
+
+            t.set(sellerWalletRef, creditUpdate, { merge: true });
+        }
+
+        const orderRef = db.collection("orders").doc();
+        t.set(orderRef, {
+            id: orderRef.id,
             userId: user.id,
             items: verifiedItems,
-            total: finalTotal,
-            ncopTotal: finalNcopTotal,
+            totalPaidCOP: paymentMethod !== 'ncop' ? totalToPayCOP : 0,
+            totalPaidNCOP: paymentMethod === 'ncop' ? totalToPayNCOP : (ncopAmount || 0),
             paymentMethod,
             status: 'completed',
+            membershipApplied: membershipType,
+            discountRate,
             createdAt: new Date().toISOString()
-        };
-        transaction.set(orderRef, orderData);
+        });
 
         return { orderId: orderRef.id, status: 'success' };
       });
 
-      console.log(`[Marketplace] Order processed successfully: ${result.orderId}`);
       return result;
 
-    } catch (error) {
-      console.error("[Marketplace] Process Order failed:", error);
-      throw new Error(error.message || "Order processing failed");
+    } catch (error: any) {
+      console.error("[Marketplace] Transaction Failed:", error);
+      throw new Error(error.message || "Order failed");
     }
   });

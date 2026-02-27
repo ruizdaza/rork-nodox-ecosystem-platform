@@ -1,111 +1,104 @@
 import { db } from "@/lib/firebase-server";
 import { stripe } from "@/lib/stripe-server";
-import { doc, runTransaction, collection, query, where, getDocs } from "firebase/firestore";
 import { RECHARGE_BONUS_PERCENTAGE } from "@/types/wallet";
 import { processReferralReward } from "@/backend/services/referral";
 
-// Logic extracted from confirmRechargeProcedure for reuse
 export const processRechargeConfirmation = async (paymentIntentId: string, userId: string) => {
     console.log(`[Webhook] Processing recharge confirmation for ${paymentIntentId}`);
 
-    // 1. Verify Payment with Stripe (Double check)
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== 'succeeded') {
         throw new Error(`Payment not successful. Status: ${paymentIntent.status}`);
     }
 
-    // Verify metadata matches user (if userId passed, otherwise trust metadata)
     if (userId && paymentIntent.metadata.userId !== userId) {
         throw new Error("Payment metadata mismatch");
     }
 
     const targetUserId = paymentIntent.metadata.userId;
 
-    // 2. Check if transaction already processed (Idempotency)
-    const transactionsRef = collection(db, "transactions");
-    const q = query(transactionsRef, where("metadata.stripePaymentIntentId", "==", paymentIntentId));
-    const existingDocs = await getDocs(q);
-
-    if (!existingDocs.empty) {
-        console.log("Transaction already processed");
-        return { status: "already_processed" };
-    }
-
-    // 3. Process Recharge Transaction
     const amount = paymentIntent.amount / 100;
     const bonusNcop = Math.floor((amount * RECHARGE_BONUS_PERCENTAGE) / 100);
 
-    await runTransaction(db, async (transaction) => {
-        const walletRef = doc(db, "wallets", targetUserId);
-        const walletDoc = await transaction.get(walletRef);
+    try {
+        await db.runTransaction(async (t) => {
+            const txRef = db.collection("transactions").doc(paymentIntentId);
+            const txDoc = await t.get(txRef);
 
-        let currentCop = 0;
-        let currentNcop = 0;
+            if (txDoc.exists) {
+                return;
+            }
 
-        if (walletDoc.exists()) {
-            const data = walletDoc.data();
-            currentCop = data.copBalance || 0;
-            currentNcop = data.ncopBalance || 0;
-        }
+            const walletRef = db.collection("wallets").doc(targetUserId);
+            const walletDoc = await t.get(walletRef);
 
-        const newCop = currentCop + amount;
-        const newNcop = currentNcop + bonusNcop;
+            let currentCop = 0;
+            let currentNcop = 0;
 
-        transaction.set(walletRef, {
-            copBalance: newCop,
-            ncopBalance: newNcop,
-            lastUpdated: new Date().toISOString(),
-            userId: targetUserId
-        }, { merge: true });
+            if (walletDoc.exists) {
+                const data = walletDoc.data();
+                currentCop = data?.copBalance || 0;
+                currentNcop = data?.ncopBalance || 0;
+            }
 
-        const txRef = doc(collection(db, "transactions"));
-        transaction.set(txRef, {
-            userId: targetUserId,
-            type: 'recharge',
-            currency: 'COP',
-            amount,
-            balanceAfter: newCop,
-            description: 'Recarga con Stripe (Webhook)',
-            category: 'top_up',
-            status: 'completed',
-            metadata: {
-                stripePaymentIntentId: paymentIntentId,
-                bonusNcop
-            },
-            createdAt: new Date().toISOString()
-        });
+            const newCop = currentCop + amount;
+            const newNcop = currentNcop + bonusNcop;
 
-        if (bonusNcop > 0) {
-            const bonusRef = doc(collection(db, "transactions"));
-            transaction.set(bonusRef, {
+            t.set(walletRef, {
+                copBalance: newCop,
+                ncopBalance: newNcop,
+                lastUpdated: new Date().toISOString(),
+                userId: targetUserId
+            }, { merge: true });
+
+            t.set(txRef, {
                 userId: targetUserId,
-                type: 'bonus',
-                currency: 'NCOP',
-                amount: bonusNcop,
-                balanceAfter: newNcop,
-                description: 'Bonus por recarga',
-                category: 'reward',
+                type: 'recharge',
+                currency: 'COP',
+                amount,
+                balanceAfter: newCop,
+                description: 'Recarga con Stripe',
+                category: 'top_up',
                 status: 'completed',
                 metadata: {
-                    relatedTransactionId: txRef.id
+                    stripePaymentIntentId: paymentIntentId,
+                    bonusNcop
                 },
                 createdAt: new Date().toISOString()
             });
-        }
-    });
 
-    // 4. Check and Process Referral Reward (Async, don't block response)
-    // We do this AFTER the main transaction ensures the recharge is valid.
-    // If this fails, it shouldn't revert the recharge, just log error.
-    processReferralReward(targetUserId).catch(err => {
-        console.error("Failed to process referral reward after recharge:", err);
-    });
+            if (bonusNcop > 0) {
+                const bonusRef = db.collection("transactions").doc(`${paymentIntentId}_bonus`);
+                t.set(bonusRef, {
+                    userId: targetUserId,
+                    type: 'bonus',
+                    currency: 'NCOP',
+                    amount: bonusNcop,
+                    balanceAfter: newNcop,
+                    description: 'Bonus por recarga',
+                    category: 'reward',
+                    status: 'completed',
+                    metadata: {
+                        relatedTransactionId: paymentIntentId
+                    },
+                    createdAt: new Date().toISOString()
+                });
+            }
+        });
 
-    return { status: "success" };
+        processReferralReward(targetUserId).catch(err => {
+            console.error("Failed to process referral reward after recharge:", err);
+        });
+
+        return { status: "success" };
+
+    } catch (error) {
+        console.error("Transaction failed:", error);
+        throw error;
+    }
 };
 
-// Webhook Handler Entry Point (Simulated for Hono/Express)
 export const handleStripeWebhook = async (req: any, res: any) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;

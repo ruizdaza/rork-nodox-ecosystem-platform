@@ -2,7 +2,6 @@ import { protectedProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
 import { ExchangeResponse, NCOP_TO_COP_EXCHANGE_RATE, COP_TO_NCOP_EXCHANGE_RATE } from "@/types/wallet";
 import { db } from "@/lib/firebase-server";
-import { doc, runTransaction, collection } from "firebase/firestore";
 
 export const exchangeProcedure = protectedProcedure
   .input(
@@ -42,17 +41,17 @@ export const exchangeProcedure = protectedProcedure
       const transactionId = `TXN-EXC-${Date.now()}`;
       const fee = 0;
 
-      await runTransaction(db, async (transaction) => {
-        const walletRef = doc(db, "wallets", userId);
-        const walletDoc = await transaction.get(walletRef);
+      await db.runTransaction(async (t) => {
+        const walletRef = db.collection("wallets").doc(userId);
+        const walletDoc = await t.get(walletRef);
 
-        if (!walletDoc.exists()) {
+        if (!walletDoc.exists) {
           throw new Error("Wallet not found");
         }
 
         const data = walletDoc.data();
-        const currentFromBalance = fromCurrency === 'NCOP' ? (data.ncopBalance || 0) : (data.copBalance || 0);
-        const currentToBalance = toCurrency === 'NCOP' ? (data.ncopBalance || 0) : (data.copBalance || 0);
+        const currentFromBalance = fromCurrency === 'NCOP' ? (data?.ncopBalance || 0) : (data?.copBalance || 0);
+        const currentToBalance = toCurrency === 'NCOP' ? (data?.ncopBalance || 0) : (data?.copBalance || 0);
 
         if (currentFromBalance < amount) {
           throw new Error(`Saldo insuficiente de ${fromCurrency}`);
@@ -61,21 +60,19 @@ export const exchangeProcedure = protectedProcedure
         const newFromBalance = currentFromBalance - amount;
         const newToBalance = currentToBalance + toAmount;
 
-        // Update Wallet
-        transaction.update(walletRef, {
+        t.update(walletRef, {
           [fromCurrency === 'NCOP' ? 'ncopBalance' : 'copBalance']: newFromBalance,
           [toCurrency === 'NCOP' ? 'ncopBalance' : 'copBalance']: newToBalance,
           lastUpdated: new Date().toISOString()
         });
 
-        // Record Transaction
-        const txRef = doc(collection(db, "transactions"));
-        transaction.set(txRef, {
+        const txRef = db.collection("transactions").doc(transactionId);
+        t.set(txRef, {
           id: transactionId,
           userId,
           type: 'exchange',
-          currency: fromCurrency, // Or handle as special exchange type with from/to
-          amount: amount, // Amount spent
+          currency: fromCurrency,
+          amount: amount,
           balanceAfter: newFromBalance,
           description: `Intercambio de ${amount} ${fromCurrency} a ${toAmount} ${toCurrency}`,
           category: 'conversion',
@@ -103,7 +100,7 @@ export const exchangeProcedure = protectedProcedure
       console.log(`[Wallet] Exchange completed:`, response);
       return response;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Wallet] Exchange failed:", error);
       throw new Error(error.message || "Exchange failed");
     }
