@@ -1,11 +1,13 @@
-import { publicProcedure } from "@/backend/trpc/create-context";
+import { protectedProcedure } from "@/backend/trpc/create-context";
 import { z } from "zod";
 import { WalletTransaction, TransactionFilter } from "@/types/wallet";
+import { db } from "@/lib/firebase-server";
+import { collection, query, where, orderBy, limit as firestoreLimit, getDocs, startAfter } from "firebase/firestore";
 
-export const getTransactionsProcedure = publicProcedure
+export const getTransactionsProcedure = protectedProcedure
   .input(
     z.object({
-      userId: z.string(),
+      userId: z.string().optional(),
       type: z.enum(['earn', 'spend', 'send', 'receive', 'recharge', 'withdraw', 'exchange', 'refund', 'bonus', 'commission']).optional(),
       currency: z.enum(['NCOP', 'COP']).optional(),
       status: z.enum(['pending', 'processing', 'completed', 'failed', 'cancelled', 'refunded']).optional(),
@@ -15,116 +17,53 @@ export const getTransactionsProcedure = publicProcedure
       offset: z.number().default(0),
     })
   )
-  .query(async ({ input }): Promise<{ transactions: WalletTransaction[]; total: number; hasMore: boolean }> => {
-    const { userId, type, currency, status, limit, offset } = input;
+  .query(async ({ input, ctx }): Promise<{ transactions: WalletTransaction[]; total: number; hasMore: boolean }> => {
+    const userId = ctx.user.id;
+    const { type, currency, status, limit, offset } = input;
 
     console.log(`[Wallet] Getting transactions for user: ${userId}`, { type, currency, status, limit, offset });
 
-    const mockTransactions: WalletTransaction[] = [
-      {
-        id: '1',
-        userId,
-        type: 'earn',
-        currency: 'NCOP',
-        amount: 120,
-        balanceAfter: 2450,
-        description: 'Compra en Restaurante El Sabor',
-        category: 'cashback',
-        status: 'completed',
-        metadata: {
-          orderId: 'ORD-001',
-          productName: 'Almuerzo Ejecutivo',
-        },
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '2',
-        userId,
-        type: 'spend',
-        currency: 'NCOP',
-        amount: 300,
-        balanceAfter: 2330,
-        description: 'Canje descuento Tienda Fashion',
-        category: 'purchase',
-        status: 'completed',
-        metadata: {
-          orderId: 'ORD-002',
-          productName: 'Camisa Premium',
-        },
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '3',
-        userId,
-        type: 'receive',
-        currency: 'COP',
-        amount: 50000,
-        balanceAfter: 150000,
-        description: 'Transferencia de Carlos Mendoza',
-        category: 'transfer',
-        status: 'completed',
-        metadata: {
-          senderId: 'user-002',
-          senderName: 'Carlos Mendoza',
-        },
-        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '4',
-        userId,
-        type: 'bonus',
-        currency: 'NCOP',
-        amount: 500,
-        balanceAfter: 2830,
-        description: 'Referido exitoso',
-        category: 'referral',
-        status: 'completed',
-        metadata: {
-          referralId: 'REF-001',
-        },
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '5',
-        userId,
-        type: 'recharge',
-        currency: 'COP',
-        amount: 100000,
-        balanceAfter: 100000,
-        description: 'Recarga con PSE',
-        category: 'top_up',
-        status: 'completed',
-        metadata: {
-          paymentMethod: 'PSE',
-        },
-        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ];
+    try {
+      const transactionsRef = collection(db, "transactions");
+      let q = query(transactionsRef, where("userId", "==", userId));
 
-    let filtered = mockTransactions;
+      if (type) {
+        q = query(q, where("type", "==", type));
+      }
+      if (currency) {
+        q = query(q, where("currency", "==", currency));
+      }
+      if (status) {
+        q = query(q, where("status", "==", status));
+      }
 
-    if (type) {
-      filtered = filtered.filter(t => t.type === type);
+      // Order by createdAt desc
+      q = query(q, orderBy("createdAt", "desc"));
+
+      // Fetch limit + 1 to check for hasMore
+      const fetchLimit = limit + 1;
+      // We still need to fetch enough to cover offset if we aren't using cursors properly yet.
+      // Ideally client passes lastId for cursor pagination.
+      // With offset, we have to read everything up to offset+limit.
+      q = query(q, firestoreLimit(offset + fetchLimit));
+
+      const querySnapshot = await getDocs(q);
+      const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WalletTransaction));
+
+      // Slice manually for offset
+      const paginated = allDocs.slice(offset, offset + limit);
+
+      // hasMore check: if we have more docs in total than (offset + limit)
+      const hasMore = allDocs.length > offset + limit;
+
+      return {
+        transactions: paginated,
+        total: allDocs.length, // Returning count of fetched docs as proxy for "known total" so far
+        hasMore,
+      };
+
+    } catch (error) {
+       console.error("[Wallet] Error fetching transactions:", error);
+       return { transactions: [], total: 0, hasMore: false };
     }
-    if (currency) {
-      filtered = filtered.filter(t => t.currency === currency);
-    }
-    if (status) {
-      filtered = filtered.filter(t => t.status === status);
-    }
-
-    const total = filtered.length;
-    const paginated = filtered.slice(offset, offset + limit);
-    const hasMore = offset + limit < total;
-
-    return {
-      transactions: paginated,
-      total,
-      hasMore,
-    };
   });

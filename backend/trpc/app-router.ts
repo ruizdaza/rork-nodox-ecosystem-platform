@@ -9,6 +9,8 @@ import { getChatsProcedure } from "@/backend/trpc/routes/chat/get-chats/route";
 import { getMessagesProcedure } from "@/backend/trpc/routes/chat/get-messages/route";
 import { getUsersProcedure } from "@/backend/trpc/routes/chat/get-users/route";
 
+import { processOrderProcedure } from "@/backend/trpc/routes/marketplace/process-order/route";
+
 import {
   getInventoryItemsProcedure,
   getInventoryItemProcedure,
@@ -140,6 +142,9 @@ export const appRouter = createTRPCRouter({
     getChats: getChatsProcedure,
     getMessages: getMessagesProcedure,
     getUsers: getUsersProcedure,
+  }),
+  marketplace: createTRPCRouter({
+    processOrder: processOrderProcedure,
   }),
   inventory: createTRPCRouter({
     getItems: getInventoryItemsProcedure,

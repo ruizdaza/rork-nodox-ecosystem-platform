@@ -20,6 +20,7 @@ import { WalletProvider } from "@/hooks/use-wallet";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { AuthProvider } from "@/hooks/use-auth"; // Import AuthProvider
 
 SplashScreen.preventAutoHideAsync();
 
@@ -28,6 +29,8 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Atrás" }}>
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="send" options={{ headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="recharge" options={{ headerShown: false, presentation: "modal" }} />
@@ -83,37 +86,39 @@ export default function RootLayout() {
     <ErrorBoundary onError={handleError}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <InternationalizationProvider>
-            <NotificationAnalyticsProvider>
-              <NotificationProvider>
-                <NodoXProvider>
-                <WalletProvider>
-                <TransactionProvider>
-                  <ReviewProvider>
-                    <ChatProvider>
-                      <BulkMessagingProvider>
-                        <PremiumFeaturesProvider>
-                          <AnalyticsProvider>
-                            <BusinessIntelligenceProvider>
-                              <AutomationProvider>
-                              <GestureHandlerRootView style={styles.container}>
-                                <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
-                                  <RootLayoutNav />
-                                </ErrorBoundary>
-                              </GestureHandlerRootView>
-                              </AutomationProvider>
-                            </BusinessIntelligenceProvider>
-                          </AnalyticsProvider>
-                        </PremiumFeaturesProvider>
-                      </BulkMessagingProvider>
-                    </ChatProvider>
-                  </ReviewProvider>
-                </TransactionProvider>
-                </WalletProvider>
-                </NodoXProvider>
-              </NotificationProvider>
-            </NotificationAnalyticsProvider>
-          </InternationalizationProvider>
+          <AuthProvider>
+            <InternationalizationProvider>
+              <NotificationAnalyticsProvider>
+                <NotificationProvider>
+                  <NodoXProvider>
+                  <WalletProvider>
+                  <TransactionProvider>
+                    <ReviewProvider>
+                      <ChatProvider>
+                        <BulkMessagingProvider>
+                          <PremiumFeaturesProvider>
+                            <AnalyticsProvider>
+                              <BusinessIntelligenceProvider>
+                                <AutomationProvider>
+                                <GestureHandlerRootView style={styles.container}>
+                                  <ErrorBoundary onError={(error, errorInfo) => ErrorUtils.logError(error, 'Navigation')}>
+                                    <RootLayoutNav />
+                                  </ErrorBoundary>
+                                </GestureHandlerRootView>
+                                </AutomationProvider>
+                              </BusinessIntelligenceProvider>
+                            </AnalyticsProvider>
+                          </PremiumFeaturesProvider>
+                        </BulkMessagingProvider>
+                      </ChatProvider>
+                    </ReviewProvider>
+                  </TransactionProvider>
+                  </WalletProvider>
+                  </NodoXProvider>
+                </NotificationProvider>
+              </NotificationAnalyticsProvider>
+            </InternationalizationProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </ErrorBoundary>

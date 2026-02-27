@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import type { AppRouter } from "@/backend/trpc/app-router";
 import superjson from "superjson";
+import { auth } from "@/lib/firebase-client";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -60,6 +61,22 @@ export const getTrpcClient = () => {
         httpLink({
           url: `${baseUrl}/api/trpc`,
           transformer: superjson,
+          async headers() {
+            const currentUser = auth.currentUser;
+            if (currentUser) {
+              try {
+                const token = await currentUser.getIdToken();
+                return {
+                  Authorization: `Bearer ${token}`,
+                  'X-User-Id': currentUser.uid, // Explicitly send UID for simulation environment safety
+                };
+              } catch (error) {
+                console.error("Error getting ID token:", error);
+                return {};
+              }
+            }
+            return {};
+          },
         }),
       ],
     });
