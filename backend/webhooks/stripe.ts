@@ -2,6 +2,7 @@ import { db } from "@/lib/firebase-server";
 import { stripe } from "@/lib/stripe-server";
 import { doc, runTransaction, collection, query, where, getDocs } from "firebase/firestore";
 import { RECHARGE_BONUS_PERCENTAGE } from "@/types/wallet";
+import { processReferralReward } from "@/backend/services/referral";
 
 // Logic extracted from confirmRechargeProcedure for reuse
 export const processRechargeConfirmation = async (paymentIntentId: string, userId: string) => {
@@ -92,6 +93,13 @@ export const processRechargeConfirmation = async (paymentIntentId: string, userI
                 createdAt: new Date().toISOString()
             });
         }
+    });
+
+    // 4. Check and Process Referral Reward (Async, don't block response)
+    // We do this AFTER the main transaction ensures the recharge is valid.
+    // If this fails, it shouldn't revert the recharge, just log error.
+    processReferralReward(targetUserId).catch(err => {
+        console.error("Failed to process referral reward after recharge:", err);
     });
 
     return { status: "success" };
