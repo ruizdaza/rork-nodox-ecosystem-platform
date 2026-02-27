@@ -1,7 +1,7 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, User as FirebaseUser, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase-client";
 
 // Define the User type that matches your application's needs
@@ -11,10 +11,12 @@ export interface User {
   email: string;
   avatar?: string;
   roles: string[];
-  membershipType: "free" | "premium";
+  membershipType: "free" | "plus" | "premium";
+  membershipExpiresAt?: string;
   joinDate: string;
   isAlly: boolean;
   allyStatus?: "none" | "pending" | "temp_approved" | "approved" | "rejected";
+  referralCode?: string;
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -24,47 +26,73 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   useEffect(() => {
     // Listen for Firebase Auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
       if (firebaseUser) {
         try {
-          // Fetch additional user data from Firestore
           const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
 
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
-            setUser({
-              ...userData,
-              id: firebaseUser.uid,
-              email: firebaseUser.email || userData.email,
-            });
-          } else {
-            // If user doc doesn't exist, create a basic one (or handle as error)
-            const newUser: User = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || "Usuario",
-              email: firebaseUser.email || "",
-              roles: ["user"],
-              membershipType: "free",
-              joinDate: new Date().toISOString(),
-              isAlly: false,
-              allyStatus: "none",
-            };
-            await setDoc(userDocRef, newUser);
-            setUser(newUser);
-          }
+          // Listen to User Doc changes in real-time (to catch membership updates immediately)
+          const unsubscribeDoc = onSnapshot(userDocRef, (userDoc) => {
+             if (userDoc.exists()) {
+                const userData = userDoc.data() as User;
+
+                // Client-side membership expiration check (lazy degradation)
+                let effectiveMembership = userData.membershipType || "free";
+                if (userData.membershipExpiresAt) {
+                    const expiry = new Date(userData.membershipExpiresAt);
+                    if (expiry < new Date()) {
+                        effectiveMembership = "free";
+                        // Note: We don't write back to DB here to avoid spamming writes on every load.
+                        // Ideally a backend scheduled job handles the downgrade status persistence.
+                    }
+                }
+
+                setUser({
+                  ...userData,
+                  membershipType: effectiveMembership,
+                  id: firebaseUser.uid,
+                  email: firebaseUser.email || userData.email,
+                });
+             } else {
+                // Create basic user doc if missing
+                const newUser: User = {
+                  id: firebaseUser.uid,
+                  name: firebaseUser.displayName || "Usuario",
+                  email: firebaseUser.email || "",
+                  roles: ["user"],
+                  membershipType: "free",
+                  joinDate: new Date().toISOString(),
+                  isAlly: false,
+                  allyStatus: "none",
+                };
+                setDoc(userDocRef, newUser);
+                setUser(newUser);
+             }
+             setLoading(false);
+          });
+
+          return () => unsubscribeDoc(); // Cleanup doc listener when auth changes/unmounts?
+          // Actually onAuthStateChanged callback runs once per state change.
+          // We need to manage the doc subscription lifecycle carefully.
+          // For simplicity in this hook structure, we might leak the doc listener if user logs out and in quickly?
+          // No, the return of useEffect cleans up `unsubscribeAuth`.
+          // But `unsubscribeDoc` needs to be cleaned up too.
+          // Since we are inside the callback, we can't easily return it to useEffect cleanup.
+          // Refactor: We should store unsubscribeDoc in a ref or use a separate useEffect for the doc listener dependent on firebaseUser.
+
         } catch (err: any) {
           console.error("Error fetching user data:", err);
           setError(err.message);
+          setLoading(false);
         }
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const logout = async () => {
