@@ -21,6 +21,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ErrorUtils } from "@/utils/security";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { AuthProvider } from "@/hooks/use-auth"; // Import AuthProvider
+import { StripeProvider } from "@stripe/stripe-react-native";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -86,8 +87,9 @@ export default function RootLayout() {
     <ErrorBoundary onError={handleError}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <InternationalizationProvider>
+          <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_TYooMQauvdEDq54NiTphI7jx"}>
+            <AuthProvider>
+              <InternationalizationProvider>
               <NotificationAnalyticsProvider>
                 <NotificationProvider>
                   <NodoXProvider>
@@ -115,10 +117,11 @@ export default function RootLayout() {
                   </TransactionProvider>
                   </WalletProvider>
                   </NodoXProvider>
-                </NotificationProvider>
-              </NotificationAnalyticsProvider>
-            </InternationalizationProvider>
-          </AuthProvider>
+                  </NotificationProvider>
+                </NotificationAnalyticsProvider>
+              </InternationalizationProvider>
+            </AuthProvider>
+          </StripeProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </ErrorBoundary>

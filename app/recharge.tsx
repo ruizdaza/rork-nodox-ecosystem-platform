@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -13,15 +14,21 @@ import { ArrowLeft, CreditCard, Smartphone, Plus, Zap } from "lucide-react-nativ
 import { useNodoX } from "@/hooks/use-nodox-store";
 import { useNotifications } from "@/hooks/use-notifications";
 import NodoXLogo from "@/components/NodoXLogo";
+import { useStripe } from "@stripe/stripe-react-native";
+import { trpc } from "@/lib/trpc";
 
 const RECHARGE_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 export default function RechargeScreen() {
-  const { copBalance, rechargeCOP } = useNodoX();
+  const { copBalance } = useNodoX();
   const { notifyRechargeSuccess } = useNotifications();
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"PSE" | "CARD">("PSE");
+  const [paymentMethod, setPaymentMethod] = useState<"PSE" | "CARD">("CARD"); // Default to Card for Stripe
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+
+  const createIntentMutation = trpc.payments.createIntent.useMutation();
+  const confirmRechargeMutation = trpc.wallet.confirmRecharge.useMutation();
 
   const handleRecharge = async () => {
     if (!selectedAmount) {
@@ -32,18 +39,57 @@ export default function RechargeScreen() {
     setIsLoading(true);
 
     try {
-      await rechargeCOP(selectedAmount, paymentMethod);
-      
-      // Send notification
-      notifyRechargeSuccess(selectedAmount, paymentMethod);
-      
-      Alert.alert(
-        "Recarga exitosa", 
-        `Has recargado ${selectedAmount.toLocaleString()} COP a tu billetera`,
-        [{ text: "OK", onPress: () => router.back() }]
-      );
-    } catch (error) {
-      Alert.alert("Error", "No se pudo completar la recarga. Intenta nuevamente.");
+      // 1. Create Payment Intent
+      const { clientSecret, id: paymentIntentId } = await createIntentMutation.mutateAsync({
+        amount: selectedAmount,
+        currency: 'cop',
+      });
+
+      if (!clientSecret) {
+        throw new Error("No client secret received");
+      }
+
+      // 2. Initialize Payment Sheet
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'NodoX Ecosystem',
+        returnURL: 'nodox://stripe-redirect',
+      });
+
+      if (initError) {
+        throw new Error(initError.message);
+      }
+
+      // 3. Present Payment Sheet
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        throw new Error(presentError.message);
+      }
+
+      // 4. Confirm Recharge on Backend
+      const result = await confirmRechargeMutation.mutateAsync({
+        paymentIntentId,
+      });
+
+      if (result.status === 'success' || result.status === 'already_processed') {
+        notifyRechargeSuccess(selectedAmount, "CARD");
+        Alert.alert(
+          "Recarga exitosa",
+          `Has recargado ${selectedAmount.toLocaleString()} COP a tu billetera. Nuevo saldo: $${result.newBalance?.toLocaleString() || '...'}`,
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+      } else {
+        throw new Error("Payment confirmation failed on server");
+      }
+
+    } catch (error: any) {
+      if (error.code === 'Canceled') {
+        // User canceled, do nothing
+        console.log("User canceled payment");
+      } else {
+        Alert.alert("Error", error.message || "No se pudo completar la recarga.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -105,9 +151,29 @@ export default function RechargeScreen() {
             <TouchableOpacity
               style={[
                 styles.paymentMethod,
+                paymentMethod === "CARD" && styles.paymentMethodSelected
+              ]}
+              onPress={() => setPaymentMethod("CARD")}
+            >
+              <CreditCard color={paymentMethod === "CARD" ? "#ffffff" : "#2563eb"} size={24} />
+              <View style={styles.paymentMethodContent}>
+                <Text style={[
+                  styles.paymentMethodTitle,
+                  paymentMethod === "CARD" && styles.paymentMethodTitleSelected
+                ]}>Tarjeta (Stripe)</Text>
+                <Text style={[
+                  styles.paymentMethodSubtitle,
+                  paymentMethod === "CARD" && styles.paymentMethodSubtitleSelected
+                ]}>Crédito o débito</Text>
+              </View>
+            </TouchableOpacity>
+
+             <TouchableOpacity
+              style={[
+                styles.paymentMethod,
                 paymentMethod === "PSE" && styles.paymentMethodSelected
               ]}
-              onPress={() => setPaymentMethod("PSE")}
+              onPress={() => Alert.alert("Próximamente", "Integración PSE en desarrollo")}
             >
               <Smartphone color={paymentMethod === "PSE" ? "#ffffff" : "#2563eb"} size={24} />
               <View style={styles.paymentMethodContent}>
@@ -118,27 +184,7 @@ export default function RechargeScreen() {
                 <Text style={[
                   styles.paymentMethodSubtitle,
                   paymentMethod === "PSE" && styles.paymentMethodSubtitleSelected
-                ]}>Débito desde tu banco</Text>
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.paymentMethod,
-                paymentMethod === "CARD" && styles.paymentMethodSelected
-              ]}
-              onPress={() => setPaymentMethod("CARD")}
-            >
-              <CreditCard color={paymentMethod === "CARD" ? "#ffffff" : "#2563eb"} size={24} />
-              <View style={styles.paymentMethodContent}>
-                <Text style={[
-                  styles.paymentMethodTitle,
-                  paymentMethod === "CARD" && styles.paymentMethodTitleSelected
-                ]}>Tarjeta</Text>
-                <Text style={[
-                  styles.paymentMethodSubtitle,
-                  paymentMethod === "CARD" && styles.paymentMethodSubtitleSelected
-                ]}>Crédito o débito</Text>
+                ]}>Débito bancario (Próximamente)</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -169,7 +215,7 @@ export default function RechargeScreen() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Método de pago:</Text>
-              <Text style={styles.summaryValue}>{paymentMethod}</Text>
+              <Text style={styles.summaryValue}>Stripe ({paymentMethod})</Text>
             </View>
           </View>
         )}
@@ -183,7 +229,11 @@ export default function RechargeScreen() {
           onPress={handleRecharge}
           disabled={!selectedAmount || isLoading}
         >
-          <Plus color="#ffffff" size={20} />
+          {isLoading ? (
+             <ActivityIndicator color="#ffffff" />
+          ) : (
+             <Plus color="#ffffff" size={20} />
+          )}
           <Text style={styles.rechargeButtonText}>
             {isLoading ? "Procesando..." : "Recargar saldo"}
           </Text>

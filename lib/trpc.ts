@@ -68,7 +68,7 @@ export const getTrpcClient = () => {
                 const token = await currentUser.getIdToken();
                 return {
                   Authorization: `Bearer ${token}`,
-                  'X-User-Id': currentUser.uid, // Explicitly send UID for simulation environment safety
+                  // X-User-Id removed: Architecture relies on token claims
                 };
               } catch (error) {
                 console.error("Error getting ID token:", error);

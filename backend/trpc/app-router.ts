@@ -118,9 +118,11 @@ import {
 import { getBalanceProcedure } from "@/backend/trpc/routes/wallet/get-balance/route";
 import { getTransactionsProcedure } from "@/backend/trpc/routes/wallet/get-transactions/route";
 import { rechargeProcedure } from "@/backend/trpc/routes/wallet/recharge/route";
+import { confirmRechargeProcedure } from "@/backend/trpc/routes/wallet/confirm-recharge/route";
 import { sendMoneyProcedure } from "@/backend/trpc/routes/wallet/send-money/route";
 import { exchangeProcedure } from "@/backend/trpc/routes/wallet/exchange/route";
 import { getStatsProcedure } from "@/backend/trpc/routes/wallet/get-stats/route";
+import { createPaymentIntentProcedure } from "@/backend/trpc/routes/payments/create-intent/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -227,6 +229,7 @@ export const appRouter = createTRPCRouter({
     getBalance: getBalanceProcedure,
     getTransactions: getTransactionsProcedure,
     recharge: rechargeProcedure,
+    confirmRecharge: confirmRechargeProcedure,
     sendMoney: sendMoneyProcedure,
     exchange: exchangeProcedure,
     getStats: getStatsProcedure,
