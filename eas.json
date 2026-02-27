@@ -1,0 +1,28 @@
+{
+  "cli": {
+    "version": ">= 7.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_RORK_API_BASE_URL": "http://localhost:3000"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_RORK_API_BASE_URL": "https://api-staging.nodox.co"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_RORK_API_BASE_URL": "https://api.nodox.co"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

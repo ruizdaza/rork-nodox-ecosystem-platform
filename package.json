@@ -6,11 +6,14 @@
     "start": "bunx rork start -p ut4pncpqh6127j2ukkc0j --tunnel",
     "start-web": "bunx rork start -p ut4pncpqh6127j2ukkc0j --web --tunnel",
     "start-web-dev": "DEBUG=expo* bunx rork start -p ut4pncpqh6127j2ukkc0j --web --tunnel",
+    "start-server": "node backend/dist/server.js",
+    "build-server": "tsc -p tsconfig.server.json",
     "lint": "expo lint"
   },
   "dependencies": {
     "@ai-sdk/react": "^2.0.81",
     "@expo/vector-icons": "^15.0.3",
+    "@hono/node-server": "^1.13.8",
     "@hono/trpc-server": "^0.4.0",
     "@nkzw/create-context-hook": "^1.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
