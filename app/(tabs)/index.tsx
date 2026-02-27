@@ -38,6 +38,7 @@ import {
   Megaphone,
   UserPlus,
   Sparkles,
+  Shield,
 } from "lucide-react-native";
 import { useNodoX, formatNcopValue, ncopToCop } from "@/hooks/use-nodox-store";
 import { useRouter } from "expo-router";
@@ -97,16 +98,16 @@ const RolePanelsCard = () => {
       {user.roles.includes("admin") && (
         <TouchableOpacity 
           style={styles.roleCard}
-          onPress={() => router.push('/admin-panel')}
+          onPress={() => router.push('/admin/dashboard')}
         >
           <LinearGradient
             colors={["#ef4444", "#dc2626"]}
             style={styles.roleGradient}
           >
-            <Settings color="#ffffff" size={28} />
+            <Shield color="#ffffff" size={28} />
             <View style={styles.roleContent}>
-              <Text style={styles.roleTitle}>Panel de Administración</Text>
-              <Text style={styles.roleSubtitle}>Gestión completa del sistema</Text>
+              <Text style={styles.roleTitle}>Super Admin Dashboard</Text>
+              <Text style={styles.roleSubtitle}>Control Global de NodoX</Text>
             </View>
             <ChevronRight color="#ffffff" size={20} />
           </LinearGradient>

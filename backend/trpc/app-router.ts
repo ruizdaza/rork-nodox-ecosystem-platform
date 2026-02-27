@@ -20,6 +20,9 @@ import { getAddressesProcedure } from "@/backend/trpc/routes/user/addresses/get-
 import { addAddressProcedure } from "@/backend/trpc/routes/user/addresses/add-address/route";
 import { deleteAddressProcedure } from "@/backend/trpc/routes/user/addresses/delete-address/route";
 
+import { getDashboardStatsProcedure } from "@/backend/trpc/routes/admin/dashboard/stats";
+import { getPendingAlliesProcedure, manageAllyProcedure } from "@/backend/trpc/routes/admin/allies/manage";
+
 import {
   getInventoryItemsProcedure,
   getInventoryItemProcedure,
@@ -159,6 +162,11 @@ export const appRouter = createTRPCRouter({
     getAddresses: getAddressesProcedure,
     addAddress: addAddressProcedure,
     deleteAddress: deleteAddressProcedure,
+  }),
+  admin: createTRPCRouter({
+    getStats: getDashboardStatsProcedure,
+    getPendingAllies: getPendingAlliesProcedure,
+    manageAlly: manageAllyProcedure,
   }),
   marketplace: createTRPCRouter({
     processOrder: processOrderProcedure,
