@@ -4,10 +4,25 @@ import { createPaymentIntentProcedure } from "@/backend/trpc/routes/payments/cre
 import { calculateShippingProcedure } from "@/backend/trpc/routes/logistics/calculate-shipping/route";
 import { performSecurityAuditProcedure, getSecurityEventsProcedure } from "@/backend/trpc/routes/security/audit/route";
 import { sendMessageProcedure } from "@/backend/trpc/routes/chat/send-message/route";
-import { createChatProcedure } from "@/backend/trpc/routes/chat/create-chat/route";
-import { getChatsProcedure } from "@/backend/trpc/routes/chat/get-chats/route";
+import { createConversationProcedure } from "@/backend/trpc/routes/chat/create-conversation/route";
+import { getConversationsProcedure } from "@/backend/trpc/routes/chat/get-conversations/route";
 import { getMessagesProcedure } from "@/backend/trpc/routes/chat/get-messages/route";
 import { getUsersProcedure } from "@/backend/trpc/routes/chat/get-users/route";
+
+import { processOrderProcedure } from "@/backend/trpc/routes/marketplace/process-order/route";
+
+import { createProductProcedure } from "@/backend/trpc/routes/inventory/create-product/route";
+import { getMyProductsProcedure } from "@/backend/trpc/routes/inventory/get-my-products/route";
+import { getAllyOrdersProcedure } from "@/backend/trpc/routes/inventory/orders/get-ally-orders";
+import { updateOrderStatusProcedure } from "@/backend/trpc/routes/inventory/orders/update-status";
+
+import { getAddressesProcedure } from "@/backend/trpc/routes/user/addresses/get-addresses/route";
+import { addAddressProcedure } from "@/backend/trpc/routes/user/addresses/add-address/route";
+import { deleteAddressProcedure } from "@/backend/trpc/routes/user/addresses/delete-address/route";
+import { validateReferralCodeProcedure } from "@/backend/trpc/routes/user/validate-referral/route";
+
+import { getDashboardStatsProcedure } from "@/backend/trpc/routes/admin/dashboard/stats";
+import { getPendingAlliesProcedure, manageAllyProcedure } from "@/backend/trpc/routes/admin/allies/manage";
 
 import {
   getInventoryItemsProcedure,
@@ -116,9 +131,12 @@ import {
 import { getBalanceProcedure } from "@/backend/trpc/routes/wallet/get-balance/route";
 import { getTransactionsProcedure } from "@/backend/trpc/routes/wallet/get-transactions/route";
 import { rechargeProcedure } from "@/backend/trpc/routes/wallet/recharge/route";
+import { confirmRechargeProcedure } from "@/backend/trpc/routes/wallet/confirm-recharge/route";
 import { sendMoneyProcedure } from "@/backend/trpc/routes/wallet/send-money/route";
 import { exchangeProcedure } from "@/backend/trpc/routes/wallet/exchange/route";
 import { getStatsProcedure } from "@/backend/trpc/routes/wallet/get-stats/route";
+import { purchaseMembershipProcedure } from "@/backend/trpc/routes/wallet/purchase-membership/route";
+import { createPaymentIntentProcedure } from "@/backend/trpc/routes/payments/create-intent/route";
 
 export const appRouter = createTRPCRouter({
   example: createTRPCRouter({
@@ -136,12 +154,30 @@ export const appRouter = createTRPCRouter({
   }),
   chat: createTRPCRouter({
     sendMessage: sendMessageProcedure,
-    createChat: createChatProcedure,
-    getChats: getChatsProcedure,
+    createConversation: createConversationProcedure,
+    getConversations: getConversationsProcedure,
     getMessages: getMessagesProcedure,
     getUsers: getUsersProcedure,
   }),
+  user: createTRPCRouter({
+    getAddresses: getAddressesProcedure,
+    addAddress: addAddressProcedure,
+    deleteAddress: deleteAddressProcedure,
+    validateReferralCode: validateReferralCodeProcedure,
+  }),
+  admin: createTRPCRouter({
+    getStats: getDashboardStatsProcedure,
+    getPendingAllies: getPendingAlliesProcedure,
+    manageAlly: manageAllyProcedure,
+  }),
+  marketplace: createTRPCRouter({
+    processOrder: processOrderProcedure,
+  }),
   inventory: createTRPCRouter({
+    createProduct: createProductProcedure, // New route for Ally Product Management
+    getMyProducts: getMyProductsProcedure,
+    getAllyOrders: getAllyOrdersProcedure,
+    updateOrderStatus: updateOrderStatusProcedure,
     getItems: getInventoryItemsProcedure,
     getItem: getInventoryItemProcedure,
     createItem: createInventoryItemProcedure,
@@ -222,9 +258,11 @@ export const appRouter = createTRPCRouter({
     getBalance: getBalanceProcedure,
     getTransactions: getTransactionsProcedure,
     recharge: rechargeProcedure,
+    confirmRecharge: confirmRechargeProcedure,
     sendMoney: sendMoneyProcedure,
     exchange: exchangeProcedure,
     getStats: getStatsProcedure,
+    purchaseMembership: purchaseMembershipProcedure,
   }),
 });
 

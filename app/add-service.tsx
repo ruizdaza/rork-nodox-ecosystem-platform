@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
@@ -22,31 +24,56 @@ import {
   Sparkles,
   Heart,
   PawPrint,
+  Camera,
+  Package,
 } from "lucide-react-native";
 import { useNodoX } from "@/hooks/use-nodox-store";
+import * as ImagePicker from 'expo-image-picker';
+import { useStorage } from "@/hooks/use-storage";
+import { trpc } from "@/lib/trpc";
 
 export default function AddServiceScreen() {
   const router = useRouter();
-  const { addService } = useNodoX();
+  const { addService } = useNodoX(); // Still keeping this for legacy/state sync if needed
+  const { uploadImage, uploading: uploadingImage } = useStorage();
+
+  const createProductMutation = trpc.inventory.createProduct.useMutation();
   
   const [serviceName, setServiceName] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [price, setPrice] = useState<string>("");
+  const [ncopPrice, setNcOpPrice] = useState<string>("");
   const [duration, setDuration] = useState<string>("");
+  const [stock, setStock] = useState<string>("100"); // Default stock for services
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [isService, setIsService] = useState<boolean>(true); // Toggle between Product/Service
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const serviceCategories = [
+  const categories = [
     { id: "medical", icon: Stethoscope, title: "Médico", color: "#dc2626" },
     { id: "beauty", icon: Scissors, title: "Peluquería", color: "#7c3aed" },
     { id: "aesthetic", icon: Sparkles, title: "Estética", color: "#ec4899" },
     { id: "spa", icon: Heart, title: "Spa", color: "#059669" },
-    { id: "veterinary", icon: PawPrint, title: "Veterinario", color: "#ea580c" },
+    { id: "products", icon: Package, title: "Productos", color: "#ea580c" },
   ];
 
-  const handleSaveService = async () => {
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
+  const handleSave = async () => {
     if (!serviceName.trim()) {
-      Alert.alert("Error", "El nombre del servicio es obligatorio");
+      Alert.alert("Error", "El nombre es obligatorio");
       return;
     }
     
@@ -60,8 +87,8 @@ export default function AddServiceScreen() {
       return;
     }
     
-    if (!duration.trim() || isNaN(Number(duration))) {
-      Alert.alert("Error", "La duración debe ser un número válido");
+    if (isService && (!duration.trim() || isNaN(Number(duration)))) {
+      Alert.alert("Error", "La duración debe ser un número válido para servicios");
       return;
     }
     
@@ -73,21 +100,35 @@ export default function AddServiceScreen() {
     setIsLoading(true);
     
     try {
-      const newService = {
+      let imageUrl = "https://placehold.co/600x400"; // Default image
+
+      if (imageUri) {
+        // Upload image to Firebase Storage
+        const filename = `products/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.jpg`;
+        imageUrl = await uploadImage(imageUri, filename);
+      }
+
+      const productData = {
         name: serviceName.trim(),
         description: description.trim(),
         price: Number(price),
-        duration: Number(duration),
-        category: serviceCategories.find(c => c.id === selectedCategory)?.title || "",
-        staff: [],
-        isActive: true,
+        ncopPrice: ncopPrice ? Number(ncopPrice) : Number(price) * 100, // Default 100x conversion if not set
+        category: categories.find(c => c.id === selectedCategory)?.title || "General",
+        images: [imageUrl],
+        stock: Number(stock),
+        isService: isService,
+        duration: isService ? Number(duration) : undefined,
       };
       
-      addService(newService);
+      // Save to Backend via tRPC
+      await createProductMutation.mutateAsync(productData);
+
+      // Legacy store update (optional, but keeps immediate UI sync if using store)
+      addService(productData as any);
       
       Alert.alert(
         "Éxito", 
-        "Servicio agregado correctamente",
+        `${isService ? 'Servicio' : 'Producto'} creado correctamente`,
         [
           {
             text: "OK",
@@ -95,9 +136,9 @@ export default function AddServiceScreen() {
           },
         ]
       );
-    } catch (error) {
-      Alert.alert("Error", "No se pudo agregar el servicio");
-      console.error("Error adding service:", error);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo crear el elemento");
+      console.error("Create error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +149,7 @@ export default function AddServiceScreen() {
       <Stack.Screen 
         options={{
           headerShown: true,
-          title: "Agregar Servicio",
+          title: isService ? "Agregar Servicio" : "Agregar Producto",
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()}>
               <ArrowLeft color="#1e293b" size={24} />
@@ -116,13 +157,17 @@ export default function AddServiceScreen() {
           ),
           headerRight: () => (
             <TouchableOpacity 
-              onPress={handleSaveService}
-              disabled={isLoading}
-              style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={isLoading || uploadingImage}
+              style={[styles.saveButton, (isLoading || uploadingImage) && styles.saveButtonDisabled]}
             >
-              <Save color={isLoading ? "#94a3b8" : "#2563eb"} size={20} />
-              <Text style={[styles.saveButtonText, isLoading && styles.saveButtonTextDisabled]}>
-                {isLoading ? "Guardando..." : "Guardar"}
+              {(isLoading || uploadingImage) ? (
+                <ActivityIndicator size="small" color="#94a3b8" />
+              ) : (
+                <Save color="#2563eb" size={20} />
+              )}
+              <Text style={[styles.saveButtonText, (isLoading || uploadingImage) && styles.saveButtonTextDisabled]}>
+                {(isLoading || uploadingImage) ? "Procesando..." : "Guardar"}
               </Text>
             </TouchableOpacity>
           ),
@@ -130,12 +175,40 @@ export default function AddServiceScreen() {
       />
       
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Service Name */}
+        {/* Toggle Type */}
+        <View style={styles.typeToggle}>
+            <TouchableOpacity
+                style={[styles.typeButton, isService && styles.typeButtonActive]}
+                onPress={() => setIsService(true)}
+            >
+                <Text style={[styles.typeText, isService && styles.typeTextActive]}>Servicio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.typeButton, !isService && styles.typeButtonActive]}
+                onPress={() => setIsService(false)}
+            >
+                <Text style={[styles.typeText, !isService && styles.typeTextActive]}>Producto</Text>
+            </TouchableOpacity>
+        </View>
+
+        {/* Image Picker */}
+        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+            {imageUri ? (
+                <Image source={{ uri: imageUri }} style={styles.previewImage} />
+            ) : (
+                <View style={styles.imagePlaceholder}>
+                    <Camera color="#94a3b8" size={40} />
+                    <Text style={styles.imagePlaceholderText}>Subir Imagen</Text>
+                </View>
+            )}
+        </TouchableOpacity>
+
+        {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Información básica</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Nombre del servicio *</Text>
+            <Text style={styles.inputLabel}>Nombre *</Text>
             <View style={styles.inputContainer}>
               <FileText color="#64748b" size={20} />
               <TextInput
@@ -156,7 +229,7 @@ export default function AddServiceScreen() {
                 style={[styles.textInput, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Describe el servicio que ofreces..."
+                placeholder="Describe el detalle..."
                 placeholderTextColor="#94a3b8"
                 multiline
                 numberOfLines={3}
@@ -166,11 +239,11 @@ export default function AddServiceScreen() {
           </View>
         </View>
 
-        {/* Category Selection */}
+        {/* Categories */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categoría del servicio *</Text>
+          <Text style={styles.sectionTitle}>Categoría *</Text>
           <View style={styles.categoriesGrid}>
-            {serviceCategories.map((category) => (
+            {categories.map((category) => (
               <TouchableOpacity
                 key={category.id}
                 style={[
@@ -199,9 +272,9 @@ export default function AddServiceScreen() {
           </View>
         </View>
 
-        {/* Price and Duration */}
+        {/* Pricing & Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Precio y duración</Text>
+          <Text style={styles.sectionTitle}>Detalles</Text>
           
           <View style={styles.row}>
             <View style={[styles.inputGroup, styles.halfWidth]}>
@@ -212,7 +285,7 @@ export default function AddServiceScreen() {
                   style={styles.textInput}
                   value={price}
                   onChangeText={setPrice}
-                  placeholder="25000"
+                  placeholder="0"
                   placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
                 />
@@ -220,58 +293,56 @@ export default function AddServiceScreen() {
             </View>
             
             <View style={[styles.inputGroup, styles.halfWidth]}>
-              <Text style={styles.inputLabel}>Duración (min) *</Text>
+              <Text style={styles.inputLabel}>Precio (NCOP)</Text>
               <View style={styles.inputContainer}>
-                <Clock color="#64748b" size={20} />
+                <Sparkles color="#64748b" size={20} />
                 <TextInput
                   style={styles.textInput}
-                  value={duration}
-                  onChangeText={setDuration}
-                  placeholder="45"
+                  value={ncopPrice}
+                  onChangeText={setNcOpPrice}
+                  placeholder="Opcional"
                   placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
                 />
               </View>
             </View>
           </View>
-        </View>
 
-        {/* Staff Assignment */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal asignado</Text>
-          <View style={styles.staffPlaceholder}>
-            <Users color="#94a3b8" size={32} />
-            <Text style={styles.staffPlaceholderText}>
-              Podrás asignar personal después de crear el servicio
-            </Text>
+          <View style={styles.row}>
+            {isService ? (
+                <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.inputLabel}>Duración (min) *</Text>
+                <View style={styles.inputContainer}>
+                    <Clock color="#64748b" size={20} />
+                    <TextInput
+                    style={styles.textInput}
+                    value={duration}
+                    onChangeText={setDuration}
+                    placeholder="45"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    />
+                </View>
+                </View>
+            ) : (
+                <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.inputLabel}>Stock *</Text>
+                <View style={styles.inputContainer}>
+                    <Package color="#64748b" size={20} />
+                    <TextInput
+                    style={styles.textInput}
+                    value={stock}
+                    onChangeText={setStock}
+                    placeholder="100"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    />
+                </View>
+                </View>
+            )}
           </View>
         </View>
 
-        {/* Service Preview */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vista previa</Text>
-          <View style={styles.previewCard}>
-            <View style={styles.previewHeader}>
-              <Text style={styles.previewName}>
-                {serviceName || "Nombre del servicio"}
-              </Text>
-              <Text style={styles.previewPrice}>
-                ${price ? Number(price).toLocaleString() : "0"}
-              </Text>
-            </View>
-            <Text style={styles.previewDescription}>
-              {description || "Descripción del servicio"}
-            </Text>
-            <View style={styles.previewDetails}>
-              <Text style={styles.previewDuration}>
-                {duration ? `${duration} min` : "0 min"}
-              </Text>
-              <Text style={styles.previewCategory}>
-                {selectedCategory ? serviceCategories.find(c => c.id === selectedCategory)?.title : "Sin categoría"}
-              </Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -285,6 +356,61 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
+  },
+  typeToggle: {
+      flexDirection: 'row',
+      backgroundColor: '#e2e8f0',
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 24,
+  },
+  typeButton: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: 'center',
+      borderRadius: 8,
+  },
+  typeButtonActive: {
+      backgroundColor: '#ffffff',
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+  },
+  typeText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#64748b',
+  },
+  typeTextActive: {
+      color: '#2563eb',
+  },
+  imagePicker: {
+      height: 200,
+      backgroundColor: '#ffffff',
+      borderRadius: 12,
+      marginBottom: 24,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: '#e2e8f0',
+      borderStyle: 'dashed',
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  imagePlaceholder: {
+      alignItems: 'center',
+      gap: 8,
+  },
+  imagePlaceholderText: {
+      color: '#94a3b8',
+      fontSize: 16,
+      fontWeight: '500',
+  },
+  previewImage: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
   },
   saveButton: {
     flexDirection: "row",

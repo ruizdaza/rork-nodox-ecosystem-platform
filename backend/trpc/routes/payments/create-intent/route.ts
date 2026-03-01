@@ -1,38 +1,38 @@
-import { z } from 'zod';
-import { protectedProcedure } from '@/backend/trpc/create-context';
+import { protectedProcedure } from "@/backend/trpc/create-context";
+import { z } from "zod";
+import { stripe } from "@/lib/stripe-server";
 
 export const createPaymentIntentProcedure = protectedProcedure
   .input(z.object({
     amount: z.number().positive(),
-    currency: z.string().min(3).max(3),
-    paymentMethodId: z.string(),
-    gatewayId: z.string(),
-    metadata: z.record(z.string(), z.any()).optional()
+    currency: z.string().default('cop'),
   }))
-  .mutation(async ({ input }: { input: any }) => {
-    console.log('Creating payment intent:', input);
-    
-    const paymentIntent = {
-      id: `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      amount: input.amount,
-      currency: input.currency,
-      status: 'pending' as const,
-      paymentMethodId: input.paymentMethodId,
-      gatewayId: input.gatewayId,
-      clientSecret: `pi_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`,
-      metadata: {
-        userId: 'current_user_id',
-        description: 'Payment via NodoX API',
-        ...input.metadata
-      },
-      fraudScore: Math.random() * 100,
-      riskLevel: 'low' as const,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+  .mutation(async ({ input, ctx }) => {
+    const { amount, currency } = input;
+    const { user } = ctx;
 
-    return {
-      success: true,
-      data: paymentIntent
-    };
+    console.log(`[Payments] Creating intent for user ${user.id}: ${amount} ${currency}`);
+
+    try {
+      // Create a PaymentIntent with the order amount and currency
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // Stripe expects amounts in cents/smallest unit
+        currency: currency.toLowerCase(),
+        metadata: {
+          userId: user.id,
+          type: 'recharge', // Or 'purchase' depending on flow
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+
+      return {
+        clientSecret: paymentIntent.client_secret,
+        id: paymentIntent.id,
+      };
+    } catch (error) {
+      console.error("[Payments] Create Intent Failed:", error);
+      throw new Error("Failed to initialize payment");
+    }
   });

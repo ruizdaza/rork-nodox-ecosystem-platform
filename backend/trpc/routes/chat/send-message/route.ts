@@ -1,36 +1,57 @@
-import { z } from 'zod';
-import { protectedProcedure } from '../../../create-context';
+import { protectedProcedure } from "@/backend/trpc/create-context";
+import { z } from "zod";
+import { db } from "@/lib/firebase-server";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const sendMessageProcedure = protectedProcedure
-  .input(
-    z.object({
-      chatId: z.string(),
-      content: z.string(),
-      type: z.enum(['text', 'image', 'audio', 'file', 'video_call', 'scheduled']),
-      recipientId: z.string(),
-    })
-  )
-  .mutation(async ({ input, ctx }) => {
-    console.log('[tRPC] send-message called:', input);
-    
-    // Aquí se integraría con una base de datos real
-    // Por ahora, simulamos el envío del mensaje
-    const message = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      chatId: input.chatId,
-      senderId: ctx.user?.id || 'current-user',
-      content: input.content,
-      type: input.type,
-      timestamp: new Date(),
-      isRead: false,
-      isDeleted: false,
-      isEdited: false,
-    };
+  .input(z.object({
+    conversationId: z.string(),
+    text: z.string().min(1),
+    type: z.enum(['text', 'image', 'location']).default('text'),
+    metadata: z.record(z.any()).optional(),
+  }))
+  .mutation(async ({ ctx, input }) => {
+    const { user } = ctx;
+    const { conversationId, text, type, metadata } = input;
 
-    console.log('[tRPC] Message created:', message);
-    
-    return {
-      success: true,
-      message,
-    };
+    try {
+      const convRef = db.collection("conversations").doc(conversationId);
+
+      // Verify participation
+      // Optimization: Assume client is correct, rules/backend check later if critical.
+      // Here we check if doc exists and user is in it.
+      const convDoc = await convRef.get();
+      if (!convDoc.exists) throw new Error("Conversation not found");
+      const convData = convDoc.data();
+      if (!convData?.participantIds?.[user.id]) throw new Error("Not authorized");
+
+      const messageData = {
+          conversationId,
+          senderId: user.id,
+          text,
+          type,
+          metadata: metadata || {},
+          createdAt: new Date().toISOString(),
+          readBy: { [user.id]: true }
+      };
+
+      const msgRef = await db.collection("messages").add(messageData);
+
+      // Update Conversation Last Message
+      await convRef.update({
+          lastMessage: {
+              text: type === 'image' ? '📷 Imagen' : text,
+              senderId: user.id,
+              createdAt: new Date().toISOString(),
+              read: false
+          },
+          updatedAt: new Date().toISOString()
+      });
+
+      return { id: msgRef.id, ...messageData };
+
+    } catch (error) {
+      console.error("[Chat] Send Message Failed:", error);
+      throw new Error("Failed to send message");
+    }
   });

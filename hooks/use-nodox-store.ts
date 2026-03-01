@@ -4,27 +4,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Gift, ShoppingBag, Users, TrendingUp } from "lucide-react-native";
 import { InputValidator, ValidationUtils, ErrorUtils } from '@/utils/security';
 import { useNotifications } from './use-notifications';
+import { useAuth, User as AuthUser } from "./use-auth"; // Import useAuth
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase-client";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
+// Keep existing interfaces but align User with AuthUser where possible or extend it
+interface User extends AuthUser {
   phone?: string;
-  avatar: string;
-  membershipType: "free" | "premium";
-  joinDate: string;
-  roles: UserRole[];
-  isAlly: boolean;
-  allyStatus?: AllyStatus;
-  allyRequestDate?: string;
-  allyApprovalDate?: string;
-  allyTempAccessExpiry?: string;
+  // ... other fields that might be specific to this store if not in AuthUser
 }
 
-type AllyStatus = "none" | "pending" | "temp_approved" | "approved" | "rejected";
-
-type UserRole = "user" | "ally" | "referrer" | "admin";
-
+// ... (Rest of interfaces: Product, Service, etc. - kept as is)
 interface Product {
   id: string;
   name: string;
@@ -116,7 +106,7 @@ interface AllyRequest {
   taxId: string;
   legalRepresentative: string;
   requestDate: string;
-  status: AllyStatus;
+  status: "none" | "pending" | "temp_approved" | "approved" | "rejected";
   reviewedBy?: string;
   reviewDate?: string;
   rejectionReason?: string;
@@ -151,23 +141,34 @@ export const formatNcopValue = (ncop: number): string => `${ncop.toLocaleString(
 export const formatNcopBalance = (ncop: number): string => `${ncop.toLocaleString()} NCOP`;
 
 export const [NodoXProvider, useNodoX] = createContextHook(() => {
+  const { user: authUser } = useAuth(); // Use the authenticated user
   const notifications = useNotifications();
-  const [user, setUser] = useState<User>({
-    id: "1",
-    name: "María González",
-    email: "maria.gonzalez@email.com",
-    phone: "+57 300 123 4567",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-    membershipType: "premium",
-    joinDate: "2024-01-15",
-    roles: ["user", "admin"],
+
+  // Initialize user state with authUser if available, otherwise default/empty
+  const [user, setUser] = useState<User>(authUser ? { ...authUser, phone: "" } : {
+    id: "guest",
+    name: "Invitado",
+    email: "",
+    avatar: "",
+    membershipType: "free",
+    joinDate: new Date().toISOString(),
+    roles: ["user"],
     isAlly: false,
     allyStatus: "none",
   });
 
+  // Sync with authUser when it changes
+  useEffect(() => {
+    if (authUser) {
+      setUser(prev => ({ ...prev, ...authUser }));
+    }
+  }, [authUser]);
+
   const [currentView, setCurrentView] = useState<"user" | "ally">("user");
+
+  // Mock data - eventually migrate to Firestore
   const [products, setProducts] = useState<Product[]>([
-    {
+     {
       id: "1",
       name: "Corte de Cabello Clásico",
       description: "Corte profesional con lavado y peinado incluido",
@@ -197,7 +198,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
   ]);
 
   const [services, setServices] = useState<Service[]>([
-    {
+     {
       id: "1",
       name: "Corte de Cabello",
       description: "Corte profesional personalizado",
@@ -225,7 +226,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
   ]);
 
   const [appointments, setAppointments] = useState<Appointment[]>([
-    {
+      {
       id: "1",
       serviceId: "1",
       staffId: "1",
@@ -273,7 +274,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
   });
 
   const [campaigns] = useState<Campaign[]>([
-    {
+      {
       id: "1",
       name: "Aliado Destacado",
       type: "featured",
@@ -297,11 +298,34 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
 
   const [allyRequests, setAllyRequests] = useState<AllyRequest[]>([]);
 
-  const [ncopBalance, setNcopBalance] = useState<number>(2450);
-  const [copBalance, setCopBalance] = useState<number>(150000);
-  const [monthlyEarnings, setMonthlyEarnings] = useState<number>(850);
+  const [ncopBalance, setNcopBalance] = useState<number>(0);
+  const [copBalance, setCopBalance] = useState<number>(0);
+  const [monthlyEarnings, setMonthlyEarnings] = useState<number>(0);
+
+  // Real-time listener for Wallet Balance from Firestore
+  useEffect(() => {
+    if (authUser?.id) {
+      const walletRef = doc(db, "wallets", authUser.id);
+      const unsubscribe = onSnapshot(walletRef, (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          setNcopBalance(data.ncopBalance || 0);
+          setCopBalance(data.copBalance || 0);
+          setMonthlyEarnings(data.monthlyEarnings || 0);
+        } else {
+            // Default/Initial values if wallet doc doesn't exist
+            setNcopBalance(2450);
+            setCopBalance(150000);
+            setMonthlyEarnings(850);
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [authUser]);
+
+
   const [ncopHistoryState, setNcopHistory] = useState<Transaction[]>([
-    {
+     {
       id: "1",
       type: "earned",
       description: "Compra en Restaurante El Sabor",
@@ -373,47 +397,15 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
     },
   ];
 
-
-
-  useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        setNcopBalance(data.ncopBalance || 2450);
-        setCopBalance(data.copBalance || 150000);
-        setMonthlyEarnings(data.monthlyEarnings || 850);
-      }
-    } catch (error) {
-      console.log("Error loading user data:", error);
-    }
-  };
-
-  const saveUserData = async (ncopBal: number, copBal: number, earnings: number) => {
-    try {
-      const data = {
-        ncopBalance: ncopBal,
-        copBalance: copBal,
-        monthlyEarnings: earnings,
-      };
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.log("Error saving user data:", error);
-    }
-  };
-
+  // TODO: Migrate these to use Firestore setDoc/updateDoc
   const updateNcopBalance = (newBalance: number) => {
     setNcopBalance(newBalance);
-    saveUserData(newBalance, copBalance, monthlyEarnings);
+    // saveUserData(newBalance, copBalance, monthlyEarnings);
   };
 
   const updateCopBalance = (newBalance: number) => {
     setCopBalance(newBalance);
-    saveUserData(ncopBalance, newBalance, monthlyEarnings);
+    // saveUserData(ncopBalance, newBalance, monthlyEarnings);
   };
 
   const addNcop = async (amount: number, source: string = 'Sistema') => {
@@ -592,7 +584,7 @@ export const [NodoXProvider, useNodoX] = createContextHook(() => {
           
           updateCopBalance(newCopBalance);
           setNcopBalance(newNcopBalance);
-          saveUserData(newNcopBalance, newCopBalance, monthlyEarnings);
+          // saveUserData(newNcopBalance, newCopBalance, monthlyEarnings);
           
           // Trigger automatic notifications
           await notifications.notifyRechargeSuccess(amount, method);

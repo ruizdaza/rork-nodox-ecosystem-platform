@@ -1,0 +1,119 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is signed in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if the user is accessing their own document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // =======================================================================
+    // 1. USERS & PROFILES
+    // =======================================================================
+    match /users/{userId} {
+      // Users can read and update their own profile.
+      // (Creation is done securely via client SDK in register.tsx, so allow create if UID matches)
+      allow read: if isOwner(userId);
+      // Public minimal read could be allowed if needed for chat, but let's keep strict for now
+      // allow read: if isAuthenticated(); // Uncomment if users need to see other's names
+
+      // Allow create only if they are creating their own document AND they don't try to elevate their privileges
+      allow create: if isOwner(userId)
+                    && request.resource.data.roles == ['user']
+                    && request.resource.data.membershipType == 'free'
+                    && request.resource.data.isAlly == false
+                    && request.resource.data.allyStatus == 'none'
+                    && request.resource.data.referralCommissionPaid == false;
+
+      // Allow update, but PREVENT users from modifying sensitive fields directly
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                      'roles',
+                      'membershipType',
+                      'membershipExpiresAt',
+                      'isAlly',
+                      'allyStatus',
+                      'referralCommissionPaid'
+                    ]);
+      allow delete: if false; // Deletion should probably be handled by admin or a secure cloud function
+
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // =======================================================================
+    // 2. WALLETS (CRITICAL SECURITY)
+    // =======================================================================
+    match /wallets/{userId} {
+      // Users can ONLY read their own wallet balance.
+      allow read: if isOwner(userId);
+      // ALL WRITES MUST GO THROUGH tRPC BACKEND (firebase-admin bypasses these rules)
+      allow write: if false;
+    }
+
+    // =======================================================================
+    // 3. TRANSACTIONS & ORDERS
+    // =======================================================================
+    match /transactions/{transactionId} {
+      // Users can only read their own transactions
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Writes happen exclusively via backend (recharge, sendMoney, processOrder)
+      allow write: if false;
+    }
+
+    match /orders/{orderId} {
+      // Buyers can read their orders. Sellers can read orders containing their products.
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.uid in resource.data.sellerIds
+      );
+      // Order creation and status updates happen via backend
+      allow write: if false;
+    }
+
+    // =======================================================================
+    // 4. MARKETPLACE / INVENTORY
+    // =======================================================================
+    match /products/{productId} {
+      // Anyone can see active products in the marketplace
+      allow read: if true;
+      // Product creation and editing happens via tRPC (to ensure validations)
+      allow write: if false;
+    }
+
+    // =======================================================================
+    // 5. CHAT (NEXO)
+    // =======================================================================
+    match /conversations/{conversationId} {
+      // Users can read the conversation if their UID is in the participantIds map
+      // Data structure: participantIds: { "uid1": true, "uid2": true }
+      allow read: if isAuthenticated() && resource.data.participantIds[request.auth.uid] == true;
+      // Creation happens via tRPC (`createConversation`)
+      // Updates (like lastMessage) happen via tRPC (`sendMessage`)
+      allow write: if false;
+    }
+
+    match /messages/{messageId} {
+      // To read a message, we must ensure the user is part of the conversation.
+      // Firestore rules don't easily do cross-document lookups (get()) cheaply,
+      // but since messages are retrieved via a query that filters by conversationId,
+      // and we secure the conversation above, we can allow read if the user is authenticated.
+      // Ideally, the message document should duplicate `participantIds` or we do a get().
+      // For this MVP, since we use tRPC for creation, and client only listens to known convos:
+      // We will do a secure cross-doc read to ensure privacy.
+      allow read: if isAuthenticated() &&
+                  get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.participantIds[request.auth.uid] == true;
+
+      // Messages are sent via tRPC (`sendMessageProcedure`)
+      allow write: if false;
+    }
+
+  }
+}
