@@ -3,8 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityInd
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase-client';
-import { doc, setDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { trpc } from '@/lib/trpc';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const validateCodeMutation = trpc.user.validateReferralCode.useMutation();
 
   const generateReferralCode = (fullName: string) => {
     const prefix = fullName.replace(/\s/g, '').substring(0, 4).toUpperCase();
@@ -28,15 +30,13 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      // Validate Referral Code if present
+      // Validate Referral Code via secure backend if present
       let referredBy = null;
       if (referralCode.trim()) {
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("referralCode", "==", referralCode.trim()));
-        const snapshot = await getDocs(q);
+        const result = await validateCodeMutation.mutateAsync({ code: referralCode.trim() });
 
-        if (!snapshot.empty) {
-          referredBy = snapshot.docs[0].id; // The User ID of the referrer
+        if (result.valid && result.referrerId) {
+          referredBy = result.referrerId;
         } else {
           Alert.alert("Código inválido", "El código de referido no existe. Puedes continuar sin él o corregirlo.");
           setLoading(false);

@@ -19,6 +19,7 @@ import { updateOrderStatusProcedure } from "@/backend/trpc/routes/inventory/orde
 import { getAddressesProcedure } from "@/backend/trpc/routes/user/addresses/get-addresses/route";
 import { addAddressProcedure } from "@/backend/trpc/routes/user/addresses/add-address/route";
 import { deleteAddressProcedure } from "@/backend/trpc/routes/user/addresses/delete-address/route";
+import { validateReferralCodeProcedure } from "@/backend/trpc/routes/user/validate-referral/route";
 
 import { getDashboardStatsProcedure } from "@/backend/trpc/routes/admin/dashboard/stats";
 import { getPendingAlliesProcedure, manageAllyProcedure } from "@/backend/trpc/routes/admin/allies/manage";
@@ -162,6 +163,7 @@ export const appRouter = createTRPCRouter({
     getAddresses: getAddressesProcedure,
     addAddress: addAddressProcedure,
     deleteAddress: deleteAddressProcedure,
+    validateReferralCode: validateReferralCodeProcedure,
   }),
   admin: createTRPCRouter({
     getStats: getDashboardStatsProcedure,
