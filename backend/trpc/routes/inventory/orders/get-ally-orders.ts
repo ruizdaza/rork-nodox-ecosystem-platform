@@ -11,33 +11,32 @@ export const getAllyOrdersProcedure = protectedProcedure
     console.log(`[Inventory] Fetching orders for seller: ${user.id}`);
 
     try {
-      const snapshot = await db.collection("orders")
+      let query = db.collection("orders")
+        .where("sellerIds", "array-contains", user.id);
+
+      if (input.status) {
+        query = query.where("status", "==", input.status);
+      }
+
+      const snapshot = await query
         .orderBy("createdAt", "desc")
-        .limit(100) // Safety limit
+        .limit(100)
         .get();
 
       const orders: any[] = [];
 
-      // In-memory filter as fallback for lack of "array-contains" denormalization on Order
-      // Ideally: orders.where('sellerIds', 'array-contains', user.id)
-
-      const myProductIds = new Set();
-      const productsSnap = await db.collection("products").where("sellerId", "==", user.id).get();
-      productsSnap.forEach(doc => myProductIds.add(doc.id));
-
       snapshot.forEach(doc => {
           const orderData = doc.data();
-          const myItems = orderData.items?.filter((item: any) => myProductIds.has(item.productId)) || [];
+          // Filter items to only show the ones belonging to this specific seller
+          const myItems = orderData.items?.filter((item: any) => item.sellerId === user.id) || [];
 
           if (myItems.length > 0) {
-              // Optional: Filter by status if provided
-              if (input.status && orderData.status !== input.status) return;
-
               orders.push({
                   id: doc.id,
                   ...orderData,
-                  items: myItems,
-                  total: myItems.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0)
+                  items: myItems, // Override order items to only show this seller's subset
+                  // Calculate total specific to this seller's items in the order
+                  total: myItems.reduce((acc: number, item: any) => acc + (item.pricePaid * item.quantity), 0)
               });
           }
       });

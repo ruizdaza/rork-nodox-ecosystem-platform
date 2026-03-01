@@ -8,6 +8,7 @@ interface User {
   email?: string;
   name?: string;
   type?: 'user' | 'ally' | 'admin';
+  roles?: string[]; // Added to fix type checking in admin routes
 }
 
 export const createContext = async (opts: FetchCreateContextFnOptions) => {

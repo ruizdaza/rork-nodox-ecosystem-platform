@@ -14,7 +14,21 @@ export const updateOrderStatusProcedure = protectedProcedure
     console.log(`[Inventory] Updating order ${orderId} to ${status} by ${user.id}`);
 
     try {
-      await db.collection("orders").doc(orderId).update({
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await orderRef.get();
+
+      if (!orderDoc.exists) {
+          throw new Error("Order not found");
+      }
+
+      const orderData = orderDoc.data();
+
+      // Authorization Check (IDOR prevention)
+      if (!orderData?.sellerIds?.includes(user.id) && !user.roles?.includes('admin')) {
+          throw new Error("Unauthorized to modify this order");
+      }
+
+      await orderRef.update({
         status,
         updatedAt: new Date().toISOString(),
       });
@@ -23,6 +37,6 @@ export const updateOrderStatusProcedure = protectedProcedure
 
     } catch (error) {
       console.error("[Inventory] Update Order Failed:", error);
-      throw new Error("Failed to update order");
+      throw new Error(error instanceof Error ? error.message : "Failed to update order");
     }
   });

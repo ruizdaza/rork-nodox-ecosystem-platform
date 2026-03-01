@@ -122,27 +122,28 @@ export const processOrderProcedure = protectedProcedure
            });
         });
 
-        // Add Shipping Cost (Validation)
-        // Simplified Logic: If passed > 0, we trust it or apply basic rule.
-        // Rule: If total < 100000 COP, shipping applies.
-        // For NCOP payments, convert or assume standard rate.
-        // Let's validate:
+        // TAX & SHIPPING CALCULATION (Sync with frontend cart logic)
+
+        // 1. Calculate Tax (19% IVA on discounted subtotal)
+        // The frontend uses `tax = subtotal * 0.19`. We apply it here to the calculated subtotal.
+        const taxCOP = totalToPayCOP * 0.19;
+        const taxNCOP = totalToPayNCOP * 0.19;
+
+        // Add tax to totals
+        totalToPayCOP += taxCOP;
+        totalToPayNCOP += taxNCOP;
+
+        // 2. Add Shipping Cost (Validation)
         let validShippingCost = 0;
         if (shippingAddress) {
-             // Basic Validation logic
-             const subtotal = totalToPayCOP; // Approximation if Fiat
-             // If Free Shipping conditions met (e.g. > 100k), ignore client cost?
-             // Or trust client for MVP if passed?
-             // Let's trust client input `shippingCost` but sanity check it's not negative.
              validShippingCost = Math.max(0, shippingCost);
         }
 
-        // Add to Totals
-        // Assuming shipping is paid in same currency method preference
-        // If NCOP, convert cost to NCOP (1:100 ratio standard)
-
+        // Add shipping to Totals
         if (paymentMethod === 'ncop') {
-            const shippingNcop = validShippingCost * 100; // Rough conversion
+            // Document says 1 NCOP = 100 COP.
+            // So to get NCOP cost from COP shipping cost: cost / 100
+            const shippingNcop = validShippingCost / 100;
             totalToPayNCOP += shippingNcop;
         } else {
             totalToPayCOP += validShippingCost;
@@ -199,10 +200,14 @@ export const processOrderProcedure = protectedProcedure
             t.set(sellerWalletRef, creditUpdate, { merge: true });
         }
 
+        // Extract unique seller IDs for efficient querying later
+        const sellerIdsArray = Array.from(sellerCredits.keys());
+
         const orderRef = db.collection("orders").doc();
         t.set(orderRef, {
             id: orderRef.id,
             userId: user.id,
+            sellerIds: sellerIdsArray, // Added for efficient getAllyOrders queries
             items: verifiedItems,
             totalPaidCOP: paymentMethod !== 'ncop' ? totalToPayCOP : 0,
             totalPaidNCOP: paymentMethod === 'ncop' ? totalToPayNCOP : (ncopAmount || 0),

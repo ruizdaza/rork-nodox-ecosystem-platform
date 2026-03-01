@@ -279,7 +279,8 @@ export function useMarketplace() {
         })),
         total: cart.total,
         ncopTotal: cart.ncopTotal,
-        shippingAddress // Pass shipping address to backend
+        shippingAddress, // Pass shipping address to backend
+        shippingCost: cart.shipping, // Ensure shipping cost is sent
       };
 
       await processOrderMutation.mutateAsync(orderPayload);
